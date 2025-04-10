@@ -5,11 +5,13 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PairingModule } from './pairing/pairing.module';
 
 @Module({
   imports: [
     AuthModule,
     UsersModule,
+    PairingModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
