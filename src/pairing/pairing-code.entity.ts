@@ -8,14 +8,8 @@ export class PairingCode {
   @Column()
   code: string;
 
-  @Column({ default: false })
-  isUsed: boolean;
-
   @Column()
   userId: string;
-
-  @Column({ nullable: true })
-  watchId: string;
 
   @Column({ type: 'timestamptz' })
   expiresAt: Date;

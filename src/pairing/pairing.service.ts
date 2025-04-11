@@ -9,12 +9,17 @@ import { Repository } from 'typeorm';
 import { PairingCodeResponseDto } from './dto/responses/pairing-code-response.dto';
 import { VerifyCodeRequestDto } from './dto/requests/verify-code-request.dto';
 import { VerifyCodeResponseDto } from './dto/responses/verify-code-response.dto';
+import { CheckLinkResponseDto } from './dto/responses/check-link-response.dto';
+import { CheckLinkRequestDto } from './dto/requests/check-link-request.dto';
+import { User } from 'src/users/users.entity';
 
 @Injectable()
 export class PairingService {
   constructor(
     @InjectRepository(PairingCode)
     private readonly pairingCodeRepository: Repository<PairingCode>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
   ) {}
 
   generateCode(): string {
@@ -22,11 +27,20 @@ export class PairingService {
   }
 
   async generatePairingCode(userId: string): Promise<PairingCodeResponseDto> {
-    let code: string = this.generateCode();
+    const pairingCode = await this.pairingCodeRepository.findOne({
+      where: { userId },
+    });
 
-    while (await this.pairingCodeRepository.findOne({ where: { code } })) {
-      code = this.generateCode();
+    if (pairingCode) {
+      if (pairingCode.expiresAt > new Date()) {
+        return { code: pairingCode.code, expiresAt: pairingCode.expiresAt };
+      }
     }
+
+    let code: string;
+    do {
+      code = this.generateCode();
+    } while (await this.pairingCodeRepository.findOne({ where: { code } }));
 
     const expiresAt = new Date();
     expiresAt.setMinutes(new Date().getMinutes() + 5);
@@ -49,31 +63,41 @@ export class PairingService {
     const pairingCode = await this.pairingCodeRepository.findOne({
       where: { code },
     });
+
     if (!pairingCode) {
       throw new NotFoundException('Pairing code not found');
     }
 
-    if (pairingCode.isUsed || pairingCode.expiresAt < new Date()) {
-      throw new BadRequestException('Pairing code is either used or expired');
+    if (pairingCode.expiresAt < new Date()) {
+      throw new BadRequestException('Pairing code is expired');
     }
 
-    await this.pairingCodeRepository.update(pairingCode.id, {
-      isUsed: true,
-      watchId,
+    const user = await this.userRepository.findOneBy({
+      id: pairingCode.userId,
     });
+
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    user.watchId = watchId;
+    await this.userRepository.save(user);
+    await this.pairingCodeRepository.delete(pairingCode.id);
 
     return { success: true };
   }
 
-  async updatePairingCodeAttrs(
-    id: string,
-    attrs: Partial<PairingCode>,
-  ): Promise<PairingCode> {
-    const pairingCode = await this.pairingCodeRepository.findOneBy({ id });
-    if (!pairingCode) {
-      throw new NotFoundException('Pairing code not found');
+  async checkLink(
+    CheckLinkRequestDto: CheckLinkRequestDto,
+  ): Promise<CheckLinkResponseDto> {
+    const { userId, watchId } = CheckLinkRequestDto;
+
+    if (userId) {
+      const user = await this.userRepository.findOneBy({ id: userId });
+      return { isLinked: !!user?.watchId };
+    } else {
+      const user = await this.userRepository.findOne({ where: { watchId } });
+      return { isLinked: !!user };
     }
-    Object.assign(pairingCode, attrs);
-    return this.pairingCodeRepository.save(pairingCode);
   }
 }
