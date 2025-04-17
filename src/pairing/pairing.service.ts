@@ -26,33 +26,25 @@ export class PairingService {
     return Math.floor(10000 + Math.random() * 90000).toString();
   }
 
-  async generatePairingCode(userId: string): Promise<PairingCodeResponseDto> {
-    const pairingCode = await this.pairingCodeRepository.findOne({
-      where: { userId },
-    });
+  async requestPairingCode(userId: string): Promise<PairingCodeResponseDto> {
+    await this.pairingCodeRepository.delete({ userId });
 
-    if (pairingCode) {
-      if (pairingCode.expiresAt > new Date()) {
-        return { code: pairingCode.code, expiresAt: pairingCode.expiresAt };
-      }
-    }
-
-    let code: string;
+    const watchCode: string = this.generateCode();
+    let phoneCode: string;
     do {
-      code = this.generateCode();
-    } while (await this.pairingCodeRepository.findOne({ where: { code } }));
+      phoneCode = this.generateCode();
+    } while (
+      await this.pairingCodeRepository.findOne({ where: { phoneCode } })
+    );
 
-    const expiresAt = new Date();
-    expiresAt.setMinutes(new Date().getMinutes() + 5);
-
-    const newPairingCode = this.pairingCodeRepository.create({
-      code,
+    const createdCode = this.pairingCodeRepository.create({
+      phoneCode,
+      watchCode,
       userId,
-      expiresAt,
     });
-    this.pairingCodeRepository.save(newPairingCode);
+    const savedCode = await this.pairingCodeRepository.save(createdCode);
 
-    return { code, expiresAt };
+    return { code: phoneCode, expiresAt: savedCode.expiresAt };
   }
 
   async verifyPairingCode(
@@ -61,7 +53,7 @@ export class PairingService {
     const { code, watchId } = verifyCodeDto;
 
     const pairingCode = await this.pairingCodeRepository.findOne({
-      where: { code },
+      where: { phoneCode: code },
     });
 
     if (!pairingCode) {
@@ -72,19 +64,55 @@ export class PairingService {
       throw new BadRequestException('Pairing code is expired');
     }
 
-    const user = await this.userRepository.findOneBy({
-      id: pairingCode.userId,
-    });
-
-    if (!user) {
-      throw new Error('User not found');
+    if (pairingCode.isPhoneCodeUsed) {
+      throw new BadRequestException('Pairing code has already been used');
     }
 
-    user.watchId = watchId;
+    pairingCode.isPhoneCodeUsed = true;
+    pairingCode.watchId = watchId;
+    await this.pairingCodeRepository.save(pairingCode);
+
+    return { code: pairingCode.watchCode };
+  }
+
+  async requestConfirmationCode(userId: string): Promise<{ code: string }> {
+    const pairingCode = await this.pairingCodeRepository.findOneBy({ userId });
+
+    if (!pairingCode) {
+      throw new NotFoundException('Pairing code not found');
+    }
+
+    if (pairingCode.isPhoneCodeUsed) {
+      return { code: pairingCode.watchCode };
+    }
+
+    return { code: '' };
+  }
+
+  async verifyConfirmationCode(userId: string, isSame: boolean): Promise< { success: boolean} > {
+    const pairingCode = await this.pairingCodeRepository.findOneBy({ userId });
+
+    if (!pairingCode) {
+      throw new NotFoundException('Pairing code not found');
+    }
+
+    if (!isSame) {
+      pairingCode.isPhoneCodeUsed = false;
+      await this.pairingCodeRepository.save(pairingCode);
+      return { success: isSame};
+    }
+
+    const user = await this.userRepository.findOneBy({ id: userId });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    user.watchId = pairingCode.watchId;
     await this.userRepository.save(user);
     await this.pairingCodeRepository.delete(pairingCode.id);
 
-    return { success: true };
+    return { success: isSame };
   }
 
   async checkLink(

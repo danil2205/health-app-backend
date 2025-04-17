@@ -6,11 +6,23 @@ export class PairingCode {
   id: string;
 
   @Column()
-  code: string;
+  phoneCode: string;
+
+  @Column({ default: false })
+  isPhoneCodeUsed: boolean;
+
+  @Column()
+  watchCode: string;
 
   @Column()
   userId: string;
 
-  @Column({ type: 'timestamptz' })
+  @Column({ nullable: true })
+  watchId: string;
+
+  @Column({
+    type: 'timestamptz',
+    default: () => "NOW() + INTERVAL '5 MINUTES'",
+  })
   expiresAt: Date;
 }
