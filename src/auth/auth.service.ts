@@ -11,8 +11,10 @@ import {
   ALREADY_REGISTERED_ERROR,
   USER_NOT_FOUND_ERROR,
   WRONG_PASSWORD_ERROR,
+  INVALID_TOKEN_ERROR,
 } from './auth.constants';
 import * as bcrypt from 'bcrypt';
+import {  plainToInstance } from 'class-transformer';
 
 @Injectable()
 export class AuthService {
@@ -23,6 +25,16 @@ export class AuthService {
 
   async getByEmail(email: string) {
     return this.userService.findOneByEmail(email);
+  }
+
+  async validateToken(userId: string) {
+    const user = await this.userService.findOneById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException(INVALID_TOKEN_ERROR);
+    }
+
+    return plainToInstance(User, user);
   }
 
   async validateUser(email: string, password: string): Promise<User> {
@@ -48,10 +60,12 @@ export class AuthService {
       throw new BadRequestException(ALREADY_REGISTERED_ERROR);
     }
 
+    const username = user.email.split('@')[0];
     const hashedPassword = await bcrypt.hash(user.password, 10);
     const newUser = await this.userService.create({
       ...user,
       password: hashedPassword,
+      username,
     } as User);
     return this.login(newUser.email, newUser.id);
   }
