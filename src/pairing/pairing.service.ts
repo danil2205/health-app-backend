@@ -57,69 +57,97 @@ export class PairingService {
     });
 
     if (!pairingCode) {
-      throw new NotFoundException('Pairing code not found');
+      throw new NotFoundException({ success: false, code: null });
     }
 
     if (pairingCode.expiresAt < new Date()) {
-      throw new BadRequestException('Pairing code is expired');
+      throw new BadRequestException({ success: false, code: null });
     }
 
     if (pairingCode.isPhoneCodeUsed) {
-      throw new BadRequestException('Pairing code has already been used');
+      throw new BadRequestException({ success: false, code: null });
     }
 
     pairingCode.isPhoneCodeUsed = true;
     pairingCode.watchId = watchId;
     await this.pairingCodeRepository.save(pairingCode);
 
-    return { code: pairingCode.watchCode };
+    return { success: true, code: pairingCode.watchCode };
   }
 
-  async requestConfirmationCode(userId: string): Promise<{ code: string }> {
+  async requestConfirmationCode(
+    userId: string,
+  ): Promise<{ success: boolean; code: string | null }> {
     const pairingCode = await this.pairingCodeRepository.findOneBy({ userId });
 
     if (!pairingCode) {
-      throw new NotFoundException('Pairing code not found');
+      throw new NotFoundException({ success: false, code: null });
     }
 
     if (pairingCode.isPhoneCodeUsed) {
-      return { code: pairingCode.watchCode };
+      return { success: true, code: pairingCode.watchCode };
     }
 
-    return { code: '' };
+    return { success: false, code: null };
   }
 
-  async verifyConfirmationCode(userId: string, isSame: boolean): Promise< { success: boolean} > {
+  async verifyConfirmationCode(
+    userId: string,
+    isSame: boolean,
+  ): Promise<{ success: boolean; message: string }> {
     const pairingCode = await this.pairingCodeRepository.findOneBy({ userId });
 
     if (!pairingCode) {
-      throw new NotFoundException('Pairing code not found');
+      throw new NotFoundException({
+        success: false,
+        message: 'Pairing code not found.',
+      });
     }
 
     if (!isSame) {
       pairingCode.isPhoneCodeUsed = false;
       await this.pairingCodeRepository.save(pairingCode);
-      return { success: isSame};
+      return { success: false, message: 'Pairing was rejected.' };
     }
 
     const user = await this.userRepository.findOneBy({ id: userId });
 
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException({
+        success: true,
+        message: 'User not found.',
+      });
     }
 
     user.watchId = pairingCode.watchId;
     await this.userRepository.save(user);
     await this.pairingCodeRepository.delete(pairingCode.id);
 
-    return { success: isSame };
+    return { success: true, message: 'Verified successfully!' };
+  }
+
+  async unlinkWatch(
+    userId: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const user = await this.userRepository.findOneBy({ id: userId });
+
+    if (!user) {
+      throw new NotFoundException({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    user.watchId = null;
+    await this.userRepository.save(user);
+
+    return { success: true, message: 'Watch successfully unlinked' };
   }
 
   async checkLink(
     CheckLinkRequestDto: CheckLinkRequestDto,
   ): Promise<CheckLinkResponseDto> {
     const { userId, watchId } = CheckLinkRequestDto;
-
     if (userId) {
       const user = await this.userRepository.findOneBy({ id: userId });
       return { isLinked: !!user?.watchId };

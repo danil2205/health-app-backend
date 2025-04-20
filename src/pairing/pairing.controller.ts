@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Post,
@@ -21,12 +22,12 @@ export class PairingController {
   constructor(private readonly pairingService: PairingService) {}
 
   @UseGuards(AuthGuard)
-  @Get('request-pairing-code')
+  @Get('code')
   async requestPairingCode(@Request() req): Promise<PairingCodeResponseDto> {
     return this.pairingService.requestPairingCode(req.user.userId);
   }
 
-  @Post('verify-pairing-code')
+  @Post('verify')
   @HttpCode(200)
   async verifyPairingCode(
     @Body() verifyCodeDto: VerifyCodeRequestDto,
@@ -35,25 +36,38 @@ export class PairingController {
   }
 
   @UseGuards(AuthGuard)
-  @Get('request-confirmation-code')
-  async requestConfirmationCode(@Request() req): Promise<{ code: string }> {
+  @Get('confirmCode')
+  async requestConfirmationCode(
+    @Request() req,
+  ): Promise<{ success: boolean; code: string | null }> {
     return this.pairingService.requestConfirmationCode(req.user.userId);
   }
 
   @UseGuards(AuthGuard)
-  @Post('verify-confirmation-code')
+  @Post('link')
   @HttpCode(200)
   async verifyConfirmationCode(
     @Request() req,
     @Body('isSame') isSame: boolean,
-  ): Promise< { success: boolean } > {
+  ): Promise<{ success: boolean; message: string }> {
     return this.pairingService.verifyConfirmationCode(req.user.id, isSame);
   }
 
-  @Get('check-link')
+  @UseGuards(AuthGuard)
+  @Delete('unlink')
+  async unlinkWatch(
+    @Request() req,
+  ): Promise<{ success: boolean; message: string }> {
+    return this.pairingService.unlinkWatch(req.user.id);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('status')
   async checkLink(
-    @Query() checkLinkQuery: CheckLinkRequestDto,
+    @Query('watchId') watchId: string,
+    @Request() req,
   ): Promise<CheckLinkResponseDto> {
-    return this.pairingService.checkLink(checkLinkQuery);
+    const userId = req.user?.userId;
+    return this.pairingService.checkLink({ watchId, userId });
   }
 }

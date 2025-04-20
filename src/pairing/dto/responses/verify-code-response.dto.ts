@@ -1,3 +1,4 @@
 export class VerifyCodeResponseDto {
-  code: string;
+  success: boolean;
+  code: string | null;
 }

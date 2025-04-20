@@ -13,10 +13,13 @@ export class User {
   @Column({ nullable: true })
   username: string;
 
-  @Column({ nullable: true, unique: true })
-  watchId: string;
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  watchId: string | null;
 
   @Column()
   @Exclude()
   password: string;
+
+  @Column({ type: 'bytea', nullable: true })
+  avatar: Buffer;
 }

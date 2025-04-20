@@ -14,7 +14,8 @@ import {
   INVALID_TOKEN_ERROR,
 } from './auth.constants';
 import * as bcrypt from 'bcrypt';
-import {  plainToInstance } from 'class-transformer';
+import { plainToInstance } from 'class-transformer';
+import { UpdateUserDto } from 'src/users/dto/update-user.dto';
 
 @Injectable()
 export class AuthService {
@@ -75,5 +76,37 @@ export class AuthService {
     return {
       access_token: await this.jwtService.signAsync(payload),
     };
+  }
+
+  async updateUser(userId: string, updateUserDto: UpdateUserDto) {
+    const user = await this.userService.findOneById(userId);
+
+    if (!user) {
+      throw new UnauthorizedException(USER_NOT_FOUND_ERROR);
+    }
+
+    if (updateUserDto.oldPassword && updateUserDto.newPassword) {
+      const isPasswordValid = await bcrypt.compare(
+        updateUserDto.oldPassword,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        throw new UnauthorizedException(WRONG_PASSWORD_ERROR);
+      }
+
+      updateUserDto.newPassword = await bcrypt.hash(
+        updateUserDto.newPassword,
+        10,
+      );
+    }
+
+    await this.userService.update(userId, {
+      ...updateUserDto,
+      password: updateUserDto.newPassword,
+    });
+    const updatedUser = await this.userService.findOneById(userId);
+
+    return plainToInstance(User, updatedUser);
   }
 }
