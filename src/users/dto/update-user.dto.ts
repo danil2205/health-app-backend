@@ -28,5 +28,6 @@ export class UpdateUserDto {
 	newPassword?: string;
 
 	@IsOptional()
-	avatar?: Buffer;
+	@IsString()
+	avatar?: string;	
 }

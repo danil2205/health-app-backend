@@ -1,8 +1,10 @@
-import { Body, Controller, Get, Post, Put, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Request, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserDto } from '../users/dto/user.dto';
 import { AuthGuard } from './guards/auth.guard';
 import { UpdateUserDto } from '../users/dto/update-user.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
 
 @Controller('auth')
 export class AuthController {
@@ -11,7 +13,7 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @Get('me')
   async getMe(@Request() req) {
-    return this.authService.validateToken(req.user.id);
+    return this.authService.validateToken(req.user.userId);
   }
 
   @Post('signup')
@@ -30,7 +32,25 @@ export class AuthController {
 
   @UseGuards(AuthGuard)
   @Put('update')
-  async updateProfile(@Request() req, @Body() updateUserDto: UpdateUserDto) {
+  @UseInterceptors(
+    FileInterceptor('avatar', {
+      storage: diskStorage({
+        destination: './uploads/avatars',
+        filename: (req, file, cb) => {
+          cb(null, file.originalname);
+        },
+      }),
+    }),
+  )
+  async updateProfile(
+    @Request() req,
+    @Body('userData') userData: string,
+    @UploadedFile() avatar?: Express.Multer.File,
+  ) {
+    const updateUserDto: UpdateUserDto = JSON.parse(userData);
+    if (avatar) {
+      updateUserDto.avatar = avatar.filename;
+    }
     return this.authService.updateUser(req.user.userId, updateUserDto);
   }
 }

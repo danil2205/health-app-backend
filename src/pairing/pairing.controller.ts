@@ -50,7 +50,7 @@ export class PairingController {
     @Request() req,
     @Body('isSame') isSame: boolean,
   ): Promise<{ success: boolean; message: string }> {
-    return this.pairingService.verifyConfirmationCode(req.user.id, isSame);
+    return this.pairingService.verifyConfirmationCode(req.user.userId, isSame);
   }
 
   @UseGuards(AuthGuard)
@@ -58,7 +58,7 @@ export class PairingController {
   async unlinkWatch(
     @Request() req,
   ): Promise<{ success: boolean; message: string }> {
-    return this.pairingService.unlinkWatch(req.user.id);
+    return this.pairingService.unlinkWatch(req.user.userId);
   }
 
   @UseGuards(AuthGuard)

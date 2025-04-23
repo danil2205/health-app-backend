@@ -20,6 +20,6 @@ export class User {
   @Exclude()
   password: string;
 
-  @Column({ type: 'bytea', nullable: true })
-  avatar: Buffer;
+  @Column({ nullable: true })
+  avatar: string;
 }
