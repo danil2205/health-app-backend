@@ -64,11 +64,11 @@ export class PairingService {
       throw new BadRequestException({ success: false, code: null });
     }
 
-    if (pairingCode.isPhoneCodeUsed) {
+    if (pairingCode.isUsed) {
       throw new BadRequestException({ success: false, code: null });
     }
 
-    pairingCode.isPhoneCodeUsed = true;
+    pairingCode.isUsed = true;
     pairingCode.watchId = watchId;
     await this.pairingCodeRepository.save(pairingCode);
 
@@ -84,11 +84,10 @@ export class PairingService {
       throw new NotFoundException({ success: false, code: null });
     }
 
-    if (pairingCode.isPhoneCodeUsed) {
-      return { success: true, code: pairingCode.watchCode };
-    }
-
-    return { success: false, code: null };
+    return {
+      success: pairingCode.isUsed,
+      code: pairingCode.isUsed ? pairingCode.watchCode : null,
+    };
   }
 
   async verifyConfirmationCode(
@@ -105,7 +104,7 @@ export class PairingService {
     }
 
     if (!isSame) {
-      pairingCode.isPhoneCodeUsed = false;
+      pairingCode.isMatched = false;
       await this.pairingCodeRepository.save(pairingCode);
       return { success: false, message: 'Pairing was rejected.' };
     }
@@ -120,10 +119,23 @@ export class PairingService {
     }
 
     user.watchId = pairingCode.watchId;
+    pairingCode.isMatched = true;
+    await this.pairingCodeRepository.save(pairingCode);
     await this.userRepository.save(user);
-    await this.pairingCodeRepository.delete(pairingCode.id);
 
     return { success: true, message: 'Verified successfully!' };
+  }
+
+  async isConfirmedCodeMatched(
+    watchId: string,
+  ): Promise<{ isMatched: boolean | null }> {
+    const pairingCode = await this.pairingCodeRepository.findOneBy({ watchId });
+
+    if (pairingCode && pairingCode.isMatched !== null) {
+      await this.pairingCodeRepository.delete(pairingCode.id);
+    }
+
+    return { isMatched: pairingCode?.isMatched ?? null };
   }
 
   async unlinkWatch(
@@ -145,15 +157,11 @@ export class PairingService {
   }
 
   async checkLink(
-    CheckLinkRequestDto: CheckLinkRequestDto,
+    { userId, watchId }: CheckLinkRequestDto,
   ): Promise<CheckLinkResponseDto> {
-    const { userId, watchId } = CheckLinkRequestDto;
-    if (userId) {
-      const user = await this.userRepository.findOneBy({ id: userId });
-      return { isLinked: !!user?.watchId };
-    } else {
-      const user = await this.userRepository.findOne({ where: { watchId } });
-      return { isLinked: !!user };
-    }
+    const user = userId
+      ? await this.userRepository.findOneBy({ id: userId })
+      : await this.userRepository.findOne({ where: { watchId } });
+    return { isLinked: !!user?.watchId };
   }
 }

@@ -15,7 +15,6 @@ import { PairingCodeResponseDto } from './dto/responses/pairing-code-response.dt
 import { VerifyCodeRequestDto } from './dto/requests/verify-code-request.dto';
 import { VerifyCodeResponseDto } from './dto/responses/verify-code-response.dto';
 import { CheckLinkResponseDto } from './dto/responses/check-link-response.dto';
-import { CheckLinkRequestDto } from './dto/requests/check-link-request.dto';
 
 @Controller('pairing')
 export class PairingController {
@@ -61,13 +60,18 @@ export class PairingController {
     return this.pairingService.unlinkWatch(req.user.userId);
   }
 
-  @UseGuards(AuthGuard)
+  @Get('isMatched')
+  async isConfirmCodeMatched(
+    @Query('watchId') watchId: string,
+  ): Promise<{ isMatched: boolean | null }> {
+    return this.pairingService.isConfirmedCodeMatched(watchId);
+  }
+
   @Get('status')
   async checkLink(
     @Query('watchId') watchId: string,
-    @Request() req,
+    @Query('userId') userId: string,
   ): Promise<CheckLinkResponseDto> {
-    const userId = req.user?.userId;
     return this.pairingService.checkLink({ watchId, userId });
   }
 }

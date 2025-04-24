@@ -9,7 +9,10 @@ export class PairingCode {
   phoneCode: string;
 
   @Column({ default: false })
-  isPhoneCodeUsed: boolean;
+  isUsed: boolean;
+
+  @Column({ type: 'boolean', nullable: true })
+  isMatched: boolean | null;
 
   @Column()
   watchCode: string;
