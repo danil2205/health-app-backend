@@ -11,8 +11,8 @@ export class PairingCode {
   @Column({ default: false })
   isUsed: boolean;
 
-  @Column({ type: 'boolean', nullable: true })
-  isMatched: boolean | null;
+  @Column({ default: false })
+  isMatched: boolean;
 
   @Column()
   watchCode: string;

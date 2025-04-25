@@ -6,6 +6,7 @@ import {
   IsString,
   Length,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -27,28 +28,20 @@ export class ProfileDto {
   weight: number;
 
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Max(2)
   gender: number;
 
   @IsString()
-  @Length(6, 20)
+  @MaxLength(20)
   nickName: string;
 
   @IsString()
-  @Length(2, 2)
+  @Length(2, 7)
   region: string;
 
   @IsObject()
   @ValidateNested()
   @Type(() => BirthDto)
   birth: BirthDto;
-
-  @IsNumber()
-  @IsPositive()
-  menstrual_start: number;
-
-  @IsNumber()
-  @IsPositive()
-  menstrual_end: number;
 }

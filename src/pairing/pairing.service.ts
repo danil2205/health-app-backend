@@ -104,8 +104,7 @@ export class PairingService {
     }
 
     if (!isSame) {
-      pairingCode.isMatched = false;
-      await this.pairingCodeRepository.save(pairingCode);
+      await this.pairingCodeRepository.delete(pairingCode.id);
       return { success: false, message: 'Pairing was rejected.' };
     }
 
@@ -128,14 +127,14 @@ export class PairingService {
 
   async isConfirmedCodeMatched(
     watchId: string,
-  ): Promise<{ isMatched: boolean | null }> {
+  ): Promise<{ isMatched: boolean }> {
     const pairingCode = await this.pairingCodeRepository.findOneBy({ watchId });
 
-    if (pairingCode && pairingCode.isMatched !== null) {
-      await this.pairingCodeRepository.delete(pairingCode.id);
+    if (!pairingCode) {
+      throw new NotFoundException();
     }
 
-    return { isMatched: pairingCode?.isMatched ?? null };
+    return { isMatched: pairingCode.isMatched };
   }
 
   async unlinkWatch(
@@ -156,9 +155,10 @@ export class PairingService {
     return { success: true, message: 'Watch successfully unlinked' };
   }
 
-  async checkLink(
-    { userId, watchId }: CheckLinkRequestDto,
-  ): Promise<CheckLinkResponseDto> {
+  async checkLink({
+    userId,
+    watchId,
+  }: CheckLinkRequestDto): Promise<CheckLinkResponseDto> {
     const user = userId
       ? await this.userRepository.findOneBy({ id: userId })
       : await this.userRepository.findOne({ where: { watchId } });

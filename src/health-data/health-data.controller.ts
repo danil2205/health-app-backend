@@ -12,7 +12,7 @@ export class HealthDataController {
   @Post('save')
   async saveHealthData(
     @Query('watchId') watchId: string,
-    @Body() healthData: any,
+    @Body() healthData: HealthDataDto,
   ): Promise<HealthData> {
     return this.healthDataService.saveHealthData(watchId, healthData);
   }

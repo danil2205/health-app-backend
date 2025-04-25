@@ -1,26 +1,23 @@
 import {
-  IsUUID,
   IsString,
-  IsNumber,
-  IsBoolean,
   IsOptional,
-	Length,
 	IsDate,
 	IsObject,
 	ValidateNested,
 	IsInt,
 	Max,
 	Min,
+  MaxLength,
 } from 'class-validator';
-import { ProfileDto } from './profile.dto';
 import { Type } from 'class-transformer';
+import { ProfileDto } from './profile.dto';
 import { BloodOxygenDto } from './blood-oxygen.dto';
 import { SleepInfoDto } from './sleep-info.dto';
 import { StressDto } from './stress.dto';
 
 export class HealthDataDto {
   @IsString()
-  @Length(10, 50)
+  @MaxLength(20)
   watchName: string;
 
   @IsDate()
