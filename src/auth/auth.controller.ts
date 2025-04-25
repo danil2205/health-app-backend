@@ -36,8 +36,11 @@ export class AuthController {
     FileInterceptor('avatar', {
       storage: diskStorage({
         destination: './uploads/avatars',
-        filename: (req, file, cb) => {
-          cb(null, file.originalname);
+        filename: (req: any, file, cb) => {
+          const username = req.user.email.split('@')[0];
+          const fileExtension = file.originalname.split('.').pop();
+          const filename = `avatar_${username}_${Date.now()}.${fileExtension}`
+          cb(null, filename);
         },
       }),
     }),
