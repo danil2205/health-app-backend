@@ -12,8 +12,6 @@ interface Profile {
     month: number;
     day: number;
   };
-  menstrual_start: number;
-  menstrual_end: number;
 }
 
 interface BloodOxygen {
