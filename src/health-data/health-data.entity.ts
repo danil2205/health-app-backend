@@ -14,26 +14,55 @@ interface Profile {
   };
 }
 
-interface BloodOxygen {
-  value: number;
-  time: number;
-  retCode: number;
-}
-
 interface SleepInfo {
   score: number;
   startTime: number;
   endTime: number;
-  deepTime: number;
-  totalTime: number;
+  deepTime: number; // in minutes
+  totalTime: number; // in minutes
 }
 
-interface Stress {
-  value: number;
+interface AfibInfo {
+  flag: number;
+  val: number;
+  maxValue: number;
+  minValue: number;
   time: number;
+  duration: number;
 }
 
-@Entity('health_data')
+interface StageInfo {
+  model: number;
+  start: number;
+  stop: number;
+}
+
+interface NapInfo {
+  length: number; // in minutes
+  start: number;
+  stop: number;
+}
+
+interface HealthDataPoint {
+  recordTime: Date;
+  heartRate: number;
+  restHeartRate: number;
+  afib: AfibInfo[];
+  bloodOxygen: number;
+  calories: number;
+  distance: number;
+  fatBurning: number;
+  pai: number;
+  sleepInfo: SleepInfo;
+  sleepStage: StageInfo[];
+  sleepingStatus: number;
+  sleepNap: NapInfo[];
+  steps: number;
+  stand: number; // in hours
+  stress: number;
+}
+
+@Entity('health_data2')
 export class HealthData {
   @PrimaryColumn('uuid', { name: 'user_id' })
   userId: string;
@@ -41,45 +70,12 @@ export class HealthData {
   @Column('varchar', { name: 'watch_name' })
   watchName: string;
 
-  @PrimaryColumn('timestamptz', { default: () => 'NOW()', name: 'record_time' })
-  recordTime: Date;
-
   @Column('jsonb')
   profile: Profile;
 
   @Column('integer')
   battery: number;
 
-  @Column('integer', { name: 'heart_rate' })
-  heartRate: number;
-
-  @Column('jsonb', { name: 'blood_oxygen' })
-  bloodOxygen: BloodOxygen;
-
-  @Column('integer')
-  calories: number;
-
-  @Column('integer')
-  distance: number;
-
-  @Column('integer', { name: 'fat_burning' })
-  fatBurning: number;
-
-  @Column('integer')
-  pai: number;
-
-  @Column('jsonb', { name: 'sleep_info' })
-  sleepInfo: SleepInfo;
-
-  @Column('integer', { name: 'sleeping_status' })
-  sleepingStatus: number;
-
-  @Column('integer')
-  steps: number;
-
-  @Column('jsonb')
-  stress: Stress;
-
-  @Column('integer', { name: 'wear_status' })
-  wearStatus: number;
+  @Column('jsonb', { array: false, default: () => "'[]'" })
+  data: HealthDataPoint[];
 }

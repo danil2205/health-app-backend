@@ -14,6 +14,13 @@ export enum TimePeriod {
   YEAR = 'year',
 }
 
+interface HealthMetricTotals {
+  calories: number;
+  distance: number;
+  steps: number;
+  totalTimeSleep: number;
+}
+
 @Injectable()
 export class HealthDataService {
   constructor(
@@ -25,16 +32,25 @@ export class HealthDataService {
 
   async saveHealthData(
     watchId: string,
-    healthData: HealthDataDto,
+    healthDataDto: HealthDataDto,
   ): Promise<HealthData> {
     const user = await this.userRepository.findOne({ where: { watchId } });
-
     if (!user) {
-      throw new NotFoundException('User not found');
+      throw new NotFoundException(`User with watch id ${watchId} not found`);
     }
 
-    const healthDataEntity = healthData as HealthData;
-    healthDataEntity.userId = user.id;
+    let healthData = await this.healthDataRepository.findOne({
+      where: { userId: user.id },
+    });
+
+    if (!healthData) {
+      healthData = this.createNewHealthData(user.id, healthDataDto);
+    } else {
+      healthData = await this.updateExistingHealthData(
+        healthData,
+        healthDataDto,
+      );
+    }
 
     return this.healthDataRepository.save(healthData);
   }
@@ -44,35 +60,54 @@ export class HealthDataService {
     period: TimePeriod,
   ): Promise<GetHealthDataResponseDto[]> {
     const bucketSize = this.getBucketSize(period);
-    const timeRangeCondition = this.getTimeRangeCondition(period);
 
     const queryBuilder = this.healthDataRepository
-      .createQueryBuilder('health_data')
-      .select(`time_bucket('${bucketSize}', record_time)`, 'bucket')
-      .addSelect('AVG(heart_rate)', 'avg_heart_rate')
-      .addSelect(`AVG((blood_oxygen->>'value')::int)`, 'avg_blood_oxygen')
-      .addSelect('SUM(calories)', 'total_calories')
-      .addSelect('SUM(distance)', 'total_distance')
-      .addSelect('AVG(fat_burning)', 'avg_fat_burning')
-      .addSelect('AVG(pai)', 'avg_pai')
-      .addSelect(`AVG((sleep_info->>'score')::int)`, 'avg_sleep_score')
-      .addSelect(`SUM((sleep_info->>'totalTime')::int)`, 'total_sleep_time')
-      .addSelect('SUM(steps)', 'total_steps')
-      .addSelect(`AVG((stress->>'value')::int)`, 'avg_stress')
-      .where('user_id = :userId', { userId })
-      .andWhere(timeRangeCondition)
+      .createQueryBuilder('healthData')
+      .select([
+        `time_bucket(:bucketSize, (dp->>'recordTime')::timestamp) AS bucket`,
+        `AVG((dp->>'heartRate')::float) AS avg_heart_rate`,
+        `AVG((dp->>'restHeartRate')::float) AS avg_rest_heart_rate`,
+        // `AVG((dp->'afib'->>'val')::float) AS avg_afib_val`, // TODO: array
+        `AVG((dp->>'bloodOxygen')::float) AS avg_blood_oxygen`,
+        `SUM((dp->>'calories')::float) AS total_calories`,
+        `SUM((dp->>'distance')::float) AS total_distance`,
+        `AVG((dp->>'fatBurning')::float) AS avg_fat_burning`,
+        `AVG((dp->>'pai')::float) AS avg_pai`,
+        `AVG((dp->'sleepInfo'->>'score')::float) AS avg_sleep_score`,
+        `SUM((dp->'sleepInfo'->>'totalTime')::float) AS total_sleep_time`,
+        // `AVG((dp->'sleepingStage'->>>'model')::float) AS sleep_stage_type`, // TODO: array
+        `AVG((dp->>'sleepingStatus')::float) AS sleeping_status`,
+        `SUM((dp->>'steps')::float) AS total_steps`,
+        `SUM((dp->>'stand')::float) AS total_stand`,
+        `AVG((dp->>'stress')::float) AS avg_stress`,
+      ])
+      .from((subQuery) => {
+        return subQuery
+          .select(
+            'healthData.userId, jsonb_array_elements(healthData.data) AS dp',
+          )
+          .from(HealthData, 'healthData')
+          .where('healthData.userId = :userId', { userId });
+      }, 'sub')
+      .where(
+        this.getTimeRangeCondition(period, "(dp->>'recordTime')::timestamp"),
+      )
+      .setParameter('bucketSize', bucketSize)
+      .setParameter('userId', userId)
       .groupBy('bucket')
       .orderBy('bucket');
 
     const result = await queryBuilder.getRawMany();
 
     if (result.length === 0) {
-      throw new NotFoundException('No health data found');
+      return [];
     }
 
     return result.map((item) => ({
       recordTime: item.bucket,
       avgHeartRate: item.avg_heart_rate,
+      avgRestHeartRate: item.avg_rest_heart_rate,
+      // "avgAfibVal": item.avg_afib_val,
       avgBloodOxygen: item.avg_blood_oxygen,
       totalCalories: item.total_calories,
       totalDistance: item.total_distance,
@@ -80,11 +115,69 @@ export class HealthDataService {
       avgPai: item.avg_pai,
       avgSleepScore: item.avg_sleep_score,
       totalSleepTime: item.total_sleep_time,
-      // "sleepingStatus": item.sleeping_status,
+      // "sleepStageType": item.sleep_stage_type,
+      sleepingStatus: item.sleeping_status,
       totalSteps: item.total_steps,
+      totalStand: item.total_stand,
       avgStress: item.avg_stress,
-      // "wearStatus": item.wear_status,
     }));
+  }
+
+  private createNewHealthData(
+    userId: string,
+    healthDataDto: HealthDataDto,
+  ): HealthData {
+    return this.healthDataRepository.create({
+      ...healthDataDto,
+      userId,
+      data: [{ ...healthDataDto.data, recordTime: new Date() }],
+    });
+  }
+
+  private async updateExistingHealthData(
+    healthData: HealthData,
+    healthDataDto: HealthDataDto,
+  ): Promise<HealthData> {
+    Object.assign(healthData, {
+      watchName: healthDataDto.watchName,
+      profile: healthDataDto.profile,
+      battery: healthDataDto.battery,
+    });
+
+    const dailyTotals = this.calculateDailyTotals(healthData);
+
+    healthData.data.push({
+      ...healthDataDto.data,
+      calories: healthDataDto.data.calories - dailyTotals.calories,
+      distance: healthDataDto.data.distance - dailyTotals.distance,
+      steps: healthDataDto.data.steps - dailyTotals.steps,
+      sleepInfo: {
+        ...healthDataDto.data.sleepInfo,
+        totalTime:
+          healthDataDto.data.sleepInfo.totalTime - dailyTotals.totalTimeSleep,
+      },
+      recordTime: new Date(),
+    });
+    return healthData;
+  }
+
+  private calculateDailyTotals(healthData: HealthData): HealthMetricTotals {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    return healthData.data.reduce(
+      (acc: HealthMetricTotals, dataPoint) => {
+        const recordTime = new Date(dataPoint.recordTime);
+        if (recordTime >= startOfDay) {
+          acc.calories += dataPoint.calories;
+          acc.distance += dataPoint.distance;
+          acc.steps += dataPoint.steps;
+          acc.totalTimeSleep += dataPoint.sleepInfo.totalTime;
+        }
+        return acc;
+      },
+      { calories: 0, distance: 0, steps: 0, totalTimeSleep: 0 },
+    );
   }
 
   private getBucketSize(timePeriod: TimePeriod): string {
@@ -104,18 +197,21 @@ export class HealthDataService {
     }
   }
 
-  private getTimeRangeCondition(timePeriod: TimePeriod): string {
+  private getTimeRangeCondition(
+    timePeriod: TimePeriod,
+    timeColumnExpression: string,
+  ): string {
     switch (timePeriod) {
       case TimePeriod.DAY:
-        return `record_time >= DATE_TRUNC('day', NOW()) AND record_time < DATE_TRUNC('day', NOW()) + INTERVAL '1 DAY'`;
+        return `${timeColumnExpression}::date = CURRENT_DATE`;
       case TimePeriod.WEEK:
-        return `record_time >= DATE_TRUNC('week', NOW()) AND record_time < DATE_TRUNC('week', NOW()) + INTERVAL '7 DAY'`;
+        return `${timeColumnExpression} >= NOW() - INTERVAL '1 WEEK' AND ${timeColumnExpression} < NOW()`;
       case TimePeriod.MONTH:
-        return `record_time >= DATE_TRUNC('month', NOW()) AND record_time < DATE_TRUNC('month', NOW()) + INTERVAL '1 MONTH'`;
+        return `${timeColumnExpression} >= NOW() - INTERVAL '1 MONTH' AND ${timeColumnExpression} < NOW()`;
       case TimePeriod.SIX_MONTH:
-        return `record_time >= DATE_TRUNC('month', NOW() - INTERVAL '5 MONTH') AND record_time < DATE_TRUNC('month', NOW()) + INTERVAL '1 MONTH'`;
+        return `${timeColumnExpression} >= NOW() - INTERVAL '6 MONTH' AND ${timeColumnExpression} < NOW()`;
       case TimePeriod.YEAR:
-        return `record_time >= DATE_TRUNC('year', NOW()) AND record_time < DATE_TRUNC('year', NOW()) + INTERVAL '1 YEAR'`;
+        return `${timeColumnExpression} >= NOW() - INTERVAL '1 YEAR' AND ${timeColumnExpression} < NOW()`;
       default:
         throw new Error('Invalid time period');
     }
