@@ -14,11 +14,29 @@ export enum TimePeriod {
   YEAR = 'year',
 }
 
+const bucketSizes = {
+  [TimePeriod.DAY]: '5 minutes',
+  [TimePeriod.WEEK]: '1 day',
+  [TimePeriod.MONTH]: '1 day',
+  [TimePeriod.SIX_MONTH]: '1 week',
+  [TimePeriod.YEAR]: '1 month',
+};
+
+export type AllPeriodsHealthData = {
+  [key in TimePeriod]: HealthDataPoint;
+};
+
+export type HealthDataPoint = {
+  [date: string]: GetHealthDataResponseDto[];
+};
+
+
 interface HealthMetricTotals {
   calories: number;
   distance: number;
   steps: number;
   totalTimeSleep: number;
+  stand: number;
 }
 
 @Injectable()
@@ -55,21 +73,64 @@ export class HealthDataService {
     return this.healthDataRepository.save(healthData);
   }
 
-  async getHealthDataByUserId(
-    userId: String,
-    period: TimePeriod,
-  ): Promise<GetHealthDataResponseDto[]> {
-    const bucketSize = this.getBucketSize(period);
+  async getHealthDataByUserId(userId: string): Promise<AllPeriodsHealthData> {
+    const queries = [
+      { period: TimePeriod.DAY, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.DAY]) },
+      { period: TimePeriod.WEEK, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.WEEK]) },
+      { period: TimePeriod.MONTH, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.MONTH]) },
+      { period: TimePeriod.SIX_MONTH, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.SIX_MONTH]) },
+      { period: TimePeriod.YEAR, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.YEAR]) },
+    ];
 
+    const results = await Promise.all(queries.map(({ query }) => query.getRawMany()));
+
+    const mapResults = (results: any[]): HealthDataPoint => {
+      return results.reduce((formattedResults, result) => {
+        const formattedDate = new Date(result.bucket).toISOString().split('T')[0];
+        if (!formattedResults[formattedDate]) {
+          formattedResults[formattedDate] = [];
+        }
+        formattedResults[formattedDate].push({
+          recordTime: result.bucket,
+          avgHeartRate: result.avg_heart_rate,
+          avgRestHeartRate: result.avg_rest_heart_rate,
+          avgBloodOxygen: result.avg_blood_oxygen,
+          totalCalories: result.total_calories,
+          totalDistance: result.total_distance,
+          avgFatBurning: result.avg_fat_burning,
+          avgPai: result.avg_pai,
+          avgSleepScore: result.avg_sleep_score,
+          totalSleepTime: result.total_sleep_time,
+          sleepingStatus: result.sleeping_status,
+          totalSteps: result.total_steps,
+          totalStand: result.total_stand,
+          avgStress: result.avg_stress,
+        });
+        return formattedResults;
+      }, {} as HealthDataPoint);
+    };
+
+    const response: AllPeriodsHealthData = queries.reduce((acc, { period }, index) => {
+      acc[period] = mapResults(results[index]);
+      return acc;
+    }, {} as AllPeriodsHealthData);
+
+    return response;
+  }
+
+  private createPeriodQuery(
+    userId: string,
+    bucketSize: string
+  ) {
     const queryBuilder = this.healthDataRepository
       .createQueryBuilder('healthData')
       .select([
-        `time_bucket(:bucketSize, (dp->>'recordTime')::timestamp) AS bucket`,
+        `time_bucket(:bucketSize, (dp->>'recordTime')::timestamp with time zone) AS bucket`,
         `AVG((dp->>'heartRate')::float) AS avg_heart_rate`,
         `AVG((dp->>'restHeartRate')::float) AS avg_rest_heart_rate`,
         // `AVG((dp->'afib'->>'val')::float) AS avg_afib_val`, // TODO: array
         `AVG((dp->>'bloodOxygen')::float) AS avg_blood_oxygen`,
-        `SUM((dp->>'calories')::float) AS total_calories`,
+        `SUM((dp->>'calories')::float) AS total_calories`, // 13:15 - 1 | 13:20 - 0 | 13:25 - 5 || OLD: 13:15 - 1  | 13:20 - 1 | 13:25 - 6
         `SUM((dp->>'distance')::float) AS total_distance`,
         `AVG((dp->>'fatBurning')::float) AS avg_fat_burning`,
         `AVG((dp->>'pai')::float) AS avg_pai`,
@@ -89,39 +150,13 @@ export class HealthDataService {
           .from(HealthData, 'healthData')
           .where('healthData.userId = :userId', { userId });
       }, 'sub')
-      .where(
-        this.getTimeRangeCondition(period, "(dp->>'recordTime')::timestamp"),
-      )
       .setParameter('bucketSize', bucketSize)
       .setParameter('userId', userId)
       .groupBy('bucket')
       .orderBy('bucket');
 
-    const result = await queryBuilder.getRawMany();
-
-    if (result.length === 0) {
-      return [];
-    }
-
-    return result.map((item) => ({
-      recordTime: item.bucket,
-      avgHeartRate: item.avg_heart_rate,
-      avgRestHeartRate: item.avg_rest_heart_rate,
-      // "avgAfibVal": item.avg_afib_val,
-      avgBloodOxygen: item.avg_blood_oxygen,
-      totalCalories: item.total_calories,
-      totalDistance: item.total_distance,
-      avgFatBurning: item.avg_fat_burning,
-      avgPai: item.avg_pai,
-      avgSleepScore: item.avg_sleep_score,
-      totalSleepTime: item.total_sleep_time,
-      // "sleepStageType": item.sleep_stage_type,
-      sleepingStatus: item.sleeping_status,
-      totalSteps: item.total_steps,
-      totalStand: item.total_stand,
-      avgStress: item.avg_stress,
-    }));
-  }
+    return queryBuilder;
+  };
 
   private createNewHealthData(
     userId: string,
@@ -130,7 +165,7 @@ export class HealthDataService {
     return this.healthDataRepository.create({
       ...healthDataDto,
       userId,
-      data: [{ ...healthDataDto.data, recordTime: new Date() }],
+      data: [healthDataDto.data],
     });
   }
 
@@ -151,12 +186,12 @@ export class HealthDataService {
       calories: healthDataDto.data.calories - dailyTotals.calories,
       distance: healthDataDto.data.distance - dailyTotals.distance,
       steps: healthDataDto.data.steps - dailyTotals.steps,
+      stand: healthDataDto.data.stand - dailyTotals.stand,
       sleepInfo: {
         ...healthDataDto.data.sleepInfo,
         totalTime:
           healthDataDto.data.sleepInfo.totalTime - dailyTotals.totalTimeSleep,
       },
-      recordTime: new Date(),
     });
     return healthData;
   }
@@ -167,53 +202,17 @@ export class HealthDataService {
 
     return healthData.data.reduce(
       (acc: HealthMetricTotals, dataPoint) => {
-        const recordTime = new Date(dataPoint.recordTime);
-        if (recordTime >= startOfDay) {
+        const recordTime = new Date(dataPoint.recordTime).toISOString();
+        if (recordTime >= startOfDay.toISOString()) {
           acc.calories += dataPoint.calories;
           acc.distance += dataPoint.distance;
           acc.steps += dataPoint.steps;
           acc.totalTimeSleep += dataPoint.sleepInfo.totalTime;
+          acc.stand += dataPoint.stand;
         }
         return acc;
       },
-      { calories: 0, distance: 0, steps: 0, totalTimeSleep: 0 },
+      { calories: 0, distance: 0, steps: 0, totalTimeSleep: 0, stand: 0 },
     );
-  }
-
-  private getBucketSize(timePeriod: TimePeriod): string {
-    switch (timePeriod) {
-      case TimePeriod.DAY:
-        return '5 MINUTES';
-      case TimePeriod.WEEK:
-        return '1 DAY';
-      case TimePeriod.MONTH:
-        return '1 DAY';
-      case TimePeriod.SIX_MONTH:
-        return '1 WEEK';
-      case TimePeriod.YEAR:
-        return '1 MONTH';
-      default:
-        throw new Error('Invalid time period');
-    }
-  }
-
-  private getTimeRangeCondition(
-    timePeriod: TimePeriod,
-    timeColumnExpression: string,
-  ): string {
-    switch (timePeriod) {
-      case TimePeriod.DAY:
-        return `${timeColumnExpression}::date = CURRENT_DATE`;
-      case TimePeriod.WEEK:
-        return `${timeColumnExpression} >= NOW() - INTERVAL '1 WEEK' AND ${timeColumnExpression} < NOW()`;
-      case TimePeriod.MONTH:
-        return `${timeColumnExpression} >= NOW() - INTERVAL '1 MONTH' AND ${timeColumnExpression} < NOW()`;
-      case TimePeriod.SIX_MONTH:
-        return `${timeColumnExpression} >= NOW() - INTERVAL '6 MONTH' AND ${timeColumnExpression} < NOW()`;
-      case TimePeriod.YEAR:
-        return `${timeColumnExpression} >= NOW() - INTERVAL '1 YEAR' AND ${timeColumnExpression} < NOW()`;
-      default:
-        throw new Error('Invalid time period');
-    }
   }
 }

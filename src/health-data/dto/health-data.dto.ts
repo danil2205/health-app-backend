@@ -30,9 +30,4 @@ export class HealthDataDto {
   @ValidateNested()
   @Type(() => HealthDataPointDto)
   data: HealthDataPointDto;
-
-  @IsInt()
-  @Min(1)
-  @Max(3)
-  wearStatus: number;
 }

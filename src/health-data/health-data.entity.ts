@@ -44,7 +44,7 @@ interface NapInfo {
 }
 
 interface HealthDataPoint {
-  recordTime: Date;
+  recordTime: string;
   heartRate: number;
   restHeartRate: number;
   afib: AfibInfo[];

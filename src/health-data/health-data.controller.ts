@@ -7,12 +7,10 @@ import {
   Request,
   UseGuards,
 } from '@nestjs/common';
-import { HealthDataService } from './health-data.service';
+import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { HealthDataDto } from './dto/health-data.dto';
 import { HealthData } from './health-data.entity';
-import { GetHealthDataRequestDto } from './dto/requests/get-health-data-request.dto';
-import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
 
 @Controller('health')
 export class HealthDataController {
@@ -22,11 +20,9 @@ export class HealthDataController {
   @Get()
   async getHealthDataByUserId(
     @Request() req,
-    @Query() query: GetHealthDataRequestDto,
-  ): Promise<GetHealthDataResponseDto[]> {
+  ): Promise<AllPeriodsHealthData> {
     return this.healthDataService.getHealthDataByUserId(
       req.user.userId,
-      query.period,
     );
   }
 

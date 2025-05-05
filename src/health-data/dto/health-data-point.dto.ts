@@ -1,4 +1,4 @@
-import { IsArray, IsInt, IsObject, Max, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsInt, IsObject, Max, Min, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SleepInfoDto } from './sleep-info.dto';
 import { AfibInfoDto } from './atrial-fibrillation.dto';
@@ -6,6 +6,9 @@ import { StageInfoDto } from './stage-info.dto';
 import { NapInfoDto } from './nap-info.dto';
 
 export class HealthDataPointDto {
+  @IsDateString()
+  recordTime: string;
+
   @IsInt()
   heartRate: number;
 
@@ -19,7 +22,7 @@ export class HealthDataPointDto {
 
   @IsInt()
   @Min(0)
-  // @Max(255)
+  @Max(255)
   bloodOxygen: number;
 
   @IsInt()
