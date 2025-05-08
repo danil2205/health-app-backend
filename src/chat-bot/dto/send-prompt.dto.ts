@@ -4,5 +4,5 @@ export class SendPromptDto {
 	@IsString()
 	@IsNotEmpty()
 	@MaxLength(255)
-	prompt: string;
+	query: string;
 }

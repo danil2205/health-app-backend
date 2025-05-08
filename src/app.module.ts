@@ -7,7 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PairingModule } from './pairing/pairing.module';
 import { HealthDataModule } from './health-data/health-data.module';
-import { GeminiModule } from './gemini/gemini.module';
+import { ChatBotModule } from './chat-bot/chat-bot.module';
 
 @Module({
   imports: [
@@ -15,7 +15,7 @@ import { GeminiModule } from './gemini/gemini.module';
     UsersModule,
     PairingModule,
     HealthDataModule,
-    GeminiModule,
+    ChatBotModule,
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -34,7 +34,6 @@ import { GeminiModule } from './gemini/gemini.module';
         synchronize: true,
       }),
     }),
-    
   ],
 
   controllers: [AppController],
