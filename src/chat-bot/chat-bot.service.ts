@@ -1,4 +1,8 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { streamText, StreamTextResult, ToolSet } from 'ai';
+import {
+  createGoogleGenerativeAI,
+  GoogleGenerativeAIProvider,
+} from '@ai-sdk/google';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendPromptDto } from './dto/send-prompt.dto';
@@ -6,11 +10,11 @@ import { HealthDataService } from '../health-data/health-data.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Chat, History } from './chat.entity';
 import { Repository } from 'typeorm';
-import { GENERATION_CONFIG, SAFETY_SETTINGS, SYSTEM_INSTRUCTION } from './chat-bot.config';
+import { SYSTEM_INSTRUCTION } from './chat-bot.config';
 
 @Injectable()
 export class ChatBotService {
-  private googleGenerativeAI: GoogleGenerativeAI;
+  private googleAIProvider: GoogleGenerativeAIProvider;
 
   constructor(
     private readonly configService: ConfigService,
@@ -18,29 +22,32 @@ export class ChatBotService {
     @InjectRepository(Chat) private readonly chatRepository: Repository<Chat>,
   ) {
     const apiKey = this.configService.get('GEMINI_API_KEY');
-    this.googleGenerativeAI = new GoogleGenerativeAI(apiKey);
+    this.googleAIProvider = createGoogleGenerativeAI({ apiKey });
   }
 
-	async getChatHistory(
-		userId: string,
-		offset: number,
-		limit: number,
-	): Promise<History[]> {
-		const chatHistory = await this.chatRepository.findOne({
-			where: { userId },
-		});
+  async getChatHistory(
+    userId: string,
+    offset: number,
+    limit: number,
+  ): Promise<History[]> {
+    const chatHistory = await this.chatRepository.findOne({
+      where: { userId },
+    });
 
-		if (!chatHistory) {
-			return [];
-		}
+    if (!chatHistory) {
+      return [];
+    }
 
-		return chatHistory.history.reverse().slice(offset, offset + limit);
-	}
+    return chatHistory.history.slice(
+      -(offset + limit),
+      chatHistory.history.length - offset,
+    );
+  }
 
   async generateResponse(
     userId: string,
     sendPromptDto: SendPromptDto,
-  ): Promise<{ response: string }> {
+  ): Promise<StreamTextResult<ToolSet, never>> {
     const { query } = sendPromptDto;
 
     const modifiedPrompt = `
@@ -51,14 +58,7 @@ export class ChatBotService {
 		`;
 
     const configModel = this.configService.get('GEMINI_MODEL');
-
-    const model = this.googleGenerativeAI.getGenerativeModel({
-      model: configModel,
-      generationConfig: GENERATION_CONFIG,
-      safetySettings: SAFETY_SETTINGS,
-      systemInstruction: SYSTEM_INSTRUCTION,
-    });
-
+    const modelInstance = this.googleAIProvider(configModel);
     let chat = await this.chatRepository.findOne({ where: { userId } });
 
     if (!chat) {
@@ -68,16 +68,21 @@ export class ChatBotService {
       });
     }
 
-    const result = await model.generateContent(modifiedPrompt);
-
-    chat.history.push({
-      query: query,
-      response: result.response.text(),
-      createdAt: new Date().toISOString(),
+    const result = streamText({
+      model: modelInstance,
+      system: SYSTEM_INSTRUCTION,
+      prompt: modifiedPrompt,
+      maxTokens: 2048,
+      onFinish: async ({ text }) => {
+        chat.history.push({
+          query,
+          response: text,
+          createdAt: new Date().toISOString(),
+        });
+        await this.chatRepository.save(chat);
+      },
     });
 
-    await this.chatRepository.save(chat);
-
-    return { response: result.response.text() };
+    return result;
   }
 }
