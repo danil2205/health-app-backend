@@ -75,18 +75,40 @@ export class HealthDataService {
 
   async getHealthDataByUserId(userId: string): Promise<AllPeriodsHealthData> {
     const queries = [
-      { period: TimePeriod.DAY, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.DAY]) },
-      { period: TimePeriod.WEEK, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.WEEK]) },
-      { period: TimePeriod.MONTH, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.MONTH]) },
-      { period: TimePeriod.SIX_MONTH, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.SIX_MONTH]) },
-      { period: TimePeriod.YEAR, query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.YEAR]) },
+      {
+        period: TimePeriod.DAY,
+        query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.DAY]),
+      },
+      {
+        period: TimePeriod.WEEK,
+        query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.WEEK]),
+      },
+      {
+        period: TimePeriod.MONTH,
+        query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.MONTH]),
+      },
+      {
+        period: TimePeriod.SIX_MONTH,
+        query: this.createPeriodQuery(
+          userId,
+          bucketSizes[TimePeriod.SIX_MONTH],
+        ),
+      },
+      {
+        period: TimePeriod.YEAR,
+        query: this.createPeriodQuery(userId, bucketSizes[TimePeriod.YEAR]),
+      },
     ];
 
-    const results = await Promise.all(queries.map(({ query }) => query.getRawMany()));
+    const results = await Promise.all(
+      queries.map(({ query }) => query.getRawMany()),
+    );
 
     const mapResults = (results: any[]): HealthDataPoint => {
       return results.reduce((formattedResults, result) => {
-        const formattedDate = new Date(result.bucket).toISOString().split('T')[0];
+        const formattedDate = new Date(result.bucket)
+          .toISOString()
+          .split('T')[0];
         if (!formattedResults[formattedDate]) {
           formattedResults[formattedDate] = [];
         }
@@ -110,18 +132,18 @@ export class HealthDataService {
       }, {} as HealthDataPoint);
     };
 
-    const response: AllPeriodsHealthData = queries.reduce((acc, { period }, index) => {
-      acc[period] = mapResults(results[index]);
-      return acc;
-    }, {} as AllPeriodsHealthData);
+    const response: AllPeriodsHealthData = queries.reduce(
+      (acc, { period }, index) => {
+        acc[period] = mapResults(results[index]);
+        return acc;
+      },
+      {} as AllPeriodsHealthData,
+    );
 
     return response;
   }
 
-  private createPeriodQuery(
-    userId: string,
-    bucketSize: string
-  ) {
+  private createPeriodQuery(userId: string, bucketSize: string) {
     const queryBuilder = this.healthDataRepository
       .createQueryBuilder('healthData')
       .select([
@@ -156,7 +178,7 @@ export class HealthDataService {
       .orderBy('bucket');
 
     return queryBuilder;
-  };
+  }
 
   private createNewHealthData(
     userId: string,

@@ -3,7 +3,6 @@ import { ChatBotService } from './chat-bot.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { SendPromptDto } from './dto/send-prompt.dto';
 import { History } from './chat.entity';
-import { Response } from 'express';
 
 @Controller('chat')
 export class ChatBotController {
@@ -22,7 +21,6 @@ export class ChatBotController {
   @UseGuards(AuthGuard)
   @Post()
   async generateResponse(
-    @Res() res: Response,
     @Request() req,
     @Body() sendPromptDto: SendPromptDto,
   ) {
@@ -30,10 +28,7 @@ export class ChatBotController {
       req.user.userId,
       sendPromptDto,
     );
-
-		res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-    res.setHeader('Transfer-Encoding', 'chunked');
-
-    result.pipeTextStreamToResponse(res);
+    
+    return result;
   }
 }
