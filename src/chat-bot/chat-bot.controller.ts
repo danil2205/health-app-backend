@@ -15,7 +15,7 @@ export class ChatBotController {
     @Query('offset') offset: number = 0,
     @Query('limit') limit: number = 10,
   ): Promise<History[]> {
-    return this.chatBotService.getChatHistory(req.user.userId, offset, limit);
+    return this.chatBotService.getChatHistory(req.user.id, offset, limit);
   }
 
   @UseGuards(AuthGuard)
@@ -25,7 +25,7 @@ export class ChatBotController {
     @Body() sendPromptDto: SendPromptDto,
   ) {
     const result = await this.chatBotService.generateResponse(
-      req.user.userId,
+      req.user.id,
       sendPromptDto,
     );
     

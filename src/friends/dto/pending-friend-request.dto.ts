@@ -1,8 +1,11 @@
+type UserSummary = {
+  id: string;
+  username: string;
+  avatar: string;
+};
+
 export class PendingFriendRequestDto {
   id: string;
-  receiver: {
-    id: string;
-    username: string;
-    avatar: string;
-  };
+  receiver?: UserSummary;
+  requester?: UserSummary;
 }

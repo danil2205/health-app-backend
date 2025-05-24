@@ -13,7 +13,7 @@ export class AuthController {
   @UseGuards(AuthGuard)
   @Get('me')
   async getMe(@Request() req) {
-    return this.authService.validateToken(req.user.userId);
+    return this.authService.validateToken(req.user.id);
   }
 
   @Post('signup')
@@ -54,6 +54,6 @@ export class AuthController {
     if (avatar) {
       updateUserDto.avatar = avatar.filename;
     }
-    return this.authService.updateUser(req.user.userId, updateUserDto);
+    return this.authService.updateUser(req.user.id, updateUserDto);
   }
 }

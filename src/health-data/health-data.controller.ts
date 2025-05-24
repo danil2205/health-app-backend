@@ -19,7 +19,7 @@ export class HealthDataController {
   @UseGuards(AuthGuard)
   @Get()
   async getHealthDataByUserId(@Request() req): Promise<AllPeriodsHealthData> {
-    return this.healthDataService.getHealthDataByUserId(req.user.userId);
+    return this.healthDataService.getHealthDataByUserId(req.user.id);
   }
 
   // @UseGuards(AuthGuard)

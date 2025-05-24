@@ -23,7 +23,7 @@ export class PairingController {
   @UseGuards(AuthGuard)
   @Get('code')
   async requestPairingCode(@Request() req): Promise<PairingCodeResponseDto> {
-    return this.pairingService.requestPairingCode(req.user.userId);
+    return this.pairingService.requestPairingCode(req.user.id);
   }
 
   @Post('verify')
@@ -39,7 +39,7 @@ export class PairingController {
   async requestConfirmationCode(
     @Request() req,
   ): Promise<{ success: boolean; code: string | null }> {
-    return this.pairingService.requestConfirmationCode(req.user.userId);
+    return this.pairingService.requestConfirmationCode(req.user.id);
   }
 
   @UseGuards(AuthGuard)
@@ -49,7 +49,7 @@ export class PairingController {
     @Request() req,
     @Body('isSame') isSame: boolean,
   ): Promise<{ success: boolean; message: string }> {
-    return this.pairingService.verifyConfirmationCode(req.user.userId, isSame);
+    return this.pairingService.verifyConfirmationCode(req.user.id, isSame);
   }
 
   @UseGuards(AuthGuard)
@@ -57,7 +57,7 @@ export class PairingController {
   async unlinkWatch(
     @Request() req,
   ): Promise<{ success: boolean; message: string }> {
-    return this.pairingService.unlinkWatch(req.user.userId);
+    return this.pairingService.unlinkWatch(req.user.id);
   }
 
   @Get('isMatched')

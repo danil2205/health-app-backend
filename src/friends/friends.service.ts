@@ -107,33 +107,55 @@ export class FriendsService {
     }
   }
 
-  async getPendingFriendRequests(
+  private async getFriendRequests(
     userId: string,
+    isReceiver: boolean,
   ): Promise<PendingFriendRequestDto[]> {
-    const pendingRequests = await this.userFriendRepository.find({
-      where: { requesterId: userId, status: FriendshipStatus.PENDING },
+    const whereClause = isReceiver
+      ? { receiverId: userId, status: FriendshipStatus.PENDING }
+      : { requesterId: userId, status: FriendshipStatus.PENDING };
+
+    const requests = await this.userFriendRepository.find({
+      where: whereClause,
     });
 
     const result = await Promise.all(
-      pendingRequests.map(async (friendship) => {
-        const friend = await this.userRepository.findOne({
-          where: { id: friendship.receiverId },
+      requests.map(async (friendship) => {
+        const targetUserId = isReceiver
+          ? friendship.requesterId
+          : friendship.receiverId;
+        const targetUser = await this.userRepository.findOne({
+          where: { id: targetUserId },
         });
 
-        if (!friend) return null;
+        if (!targetUser) return null;
 
         return {
           id: friendship.id,
-          receiver: {
-            id: friend.id,
-            username: friend.username,
-            avatar: friend.avatar,
+          [isReceiver ? 'requester' : 'receiver']: {
+            id: targetUser.id,
+            username: targetUser.username,
+            avatar: targetUser.avatar,
           },
         };
       }),
     );
 
-    return result.filter((friend) => friend !== null);
+    return result.filter(
+      (request) => request !== null,
+    );
+  }
+
+  async getPendingFriendRequests(
+    userId: string,
+  ): Promise<PendingFriendRequestDto[]> {
+    return this.getFriendRequests(userId, true);
+  }
+
+  async getSentFriendRequests(
+    userId: string,
+  ): Promise<PendingFriendRequestDto[]> {
+    return this.getFriendRequests(userId, false);
   }
 
   async removeFriend(
