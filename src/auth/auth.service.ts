@@ -61,12 +61,11 @@ export class AuthService {
       throw new BadRequestException(ALREADY_REGISTERED_ERROR);
     }
 
-    const username = user.email.split('@')[0];
     const hashedPassword = await bcrypt.hash(user.password, 10);
     const newUser = await this.userService.create({
       ...user,
       password: hashedPassword,
-      username,
+      username: user.email,
     } as User);
     return this.login(newUser.email, newUser.id);
   }

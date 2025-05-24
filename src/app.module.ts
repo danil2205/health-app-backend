@@ -8,6 +8,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { PairingModule } from './pairing/pairing.module';
 import { HealthDataModule } from './health-data/health-data.module';
 import { ChatBotModule } from './chat-bot/chat-bot.module';
+import { FriendsModule } from './friends/friends.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { ChatBotModule } from './chat-bot/chat-bot.module';
         synchronize: true,
       }),
     }),
+    FriendsModule,
   ],
 
   controllers: [AppController],

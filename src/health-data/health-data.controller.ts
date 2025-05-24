@@ -10,7 +10,7 @@ import {
 import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { HealthDataDto } from './dto/health-data.dto';
-import { HealthData } from './health-data.entity';
+import { HealthData } from './entity/health-data.entity';
 
 @Controller('health')
 export class HealthDataController {
@@ -18,12 +18,8 @@ export class HealthDataController {
 
   @UseGuards(AuthGuard)
   @Get()
-  async getHealthDataByUserId(
-    @Request() req,
-  ): Promise<AllPeriodsHealthData> {
-    return this.healthDataService.getHealthDataByUserId(
-      req.user.userId,
-    );
+  async getHealthDataByUserId(@Request() req): Promise<AllPeriodsHealthData> {
+    return this.healthDataService.getHealthDataByUserId(req.user.userId);
   }
 
   // @UseGuards(AuthGuard)

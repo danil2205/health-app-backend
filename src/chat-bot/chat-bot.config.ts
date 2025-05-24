@@ -73,13 +73,10 @@ export const SYSTEM_INSTRUCTION_DB = `You are a SQL (PostgreSQL) and data visual
       SELECT DATE_TRUNC('day', (elem ->> 'recordTime')::timestamptz) AS "recordTime", AVG((elem ->> 'steps')::integer) AS "steps"
       FROM health_data2, jsonb_array_elements(data) AS elem
       WHERE "user_id" = 'specific_user_id'
-      GROUP BY "day"
-      ORDER BY "day";
+      GROUP BY "recordTime"
+      ORDER BY "recordTime";
 
       Consider "activity levels" (steps, distance, calories, fatBurning) and "sleep quality" (sleepInfo.score, totalTime, deepTime).
       Ensure all selected JSON fields are aliased with their original key name in double quotes.
       Today's date is ${new Date().toLocaleDateString()}
       `;
-      
-      
-      

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { HealthData } from './health-data.entity';
+import { HealthData } from './entity/health-data.entity';
 import { Repository } from 'typeorm';
 import { HealthDataDto } from './dto/health-data.dto';
 import { User } from '../users/users.entity';
@@ -29,7 +29,6 @@ export type AllPeriodsHealthData = {
 export type HealthDataPoint = {
   [date: string]: GetHealthDataResponseDto[];
 };
-
 
 interface HealthMetricTotals {
   calories: number;

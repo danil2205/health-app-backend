@@ -1,29 +1,33 @@
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class PairingCode {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column()
+  @Column({ name: 'phone_code' })
   phoneCode: string;
 
-  @Column({ default: false })
+  @Column({ name: 'is_used', default: false })
   isUsed: boolean;
 
-  @Column({ default: false })
+  @Column({ name: 'is_matched', default: false })
   isMatched: boolean;
 
-  @Column()
+  @Column({ name: 'watch_code' })
   watchCode: string;
 
-  @Column()
+  @Column({ name: 'user_id' })
   userId: string;
 
-  @Column({ nullable: true })
+  @Column({ name: 'watch_id', nullable: true })
   watchId: string;
 
+  @CreateDateColumn({ name: 'created_at' })
+  createdAt: Date;
+
   @Column({
+    name: 'expires_at',
     type: 'timestamptz',
     default: () => "NOW() + INTERVAL '5 MINUTES'",
   })

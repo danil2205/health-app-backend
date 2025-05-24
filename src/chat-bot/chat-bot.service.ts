@@ -12,7 +12,7 @@ import { Chat, History } from './chat.entity';
 import { Repository } from 'typeorm';
 import { SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION_DB } from './chat-bot.config';
 import { z } from 'zod';
-import { HealthData } from 'src/health-data/health-data.entity';
+import { HealthData } from 'src/health-data/entity/health-data.entity';
 
 @Injectable()
 export class ChatBotService {
@@ -69,7 +69,7 @@ export class ChatBotService {
     );
     console.log('Generated SQL Query:', generatedQuery);
     const resultsFromDb = await this.runGenerateSQLQuery(generatedQuery);
-    console.log('Results from DB:', resultsFromDb);
+    // console.log('Results from DB:', resultsFromDb);
 
     const result = await generateText({
       model: modelInstance,
@@ -80,7 +80,14 @@ export class ChatBotService {
           description: 'Show a chart based on the user health data',
           parameters: z.object({}),
           execute: async () => {
-            return JSON.stringify(resultsFromDb);
+            const metricType = Object.keys(resultsFromDb[0]).find(
+              (key) => key != 'recordTime',
+            );
+            const data = resultsFromDb.map((item) => ({
+              recordTime: item.recordTime,
+              value: metricType ? item[metricType] : undefined,
+            }));
+            return JSON.stringify({ data, metricType });
           },
         }),
       },
