@@ -41,7 +41,7 @@ export class HealthDataService {
     [TimePeriod.WEEK]: '1 day',
     [TimePeriod.MONTH]: '1 day',
     [TimePeriod.SIX_MONTH]: '1 week',
-    [TimePeriod.YEAR]: '1 month',    
+    [TimePeriod.YEAR]: '1 month',
   };
 
   constructor(
@@ -102,10 +102,15 @@ export class HealthDataService {
     return await this.healthDataRepository.save(healthDataPoint);
   }
 
-  async getHealthDataByUserId(userId: string): Promise<AllPeriodsHealthData> {
+  async getHealthDataByUserId(
+    userId: string,
+    userTimezone: string = 'UTC',
+  ): Promise<AllPeriodsHealthData> {
     const periods = Object.values(TimePeriod) as TimePeriod[];
     const results = await Promise.all(
-      periods.map((period) => this.getHealthDataByPeriod(userId, period)),
+      periods.map((period) =>
+        this.getHealthDataByPeriod(userId, period, userTimezone),
+      ),
     );
 
     return periods.reduce((acc, period, idx) => {
@@ -117,6 +122,7 @@ export class HealthDataService {
   async getHealthDataByPeriod(
     userId: string,
     period: TimePeriod,
+    userTimezone: string,
   ): Promise<DailyGroupedHealthData> {
     const bucketSize = this.bucketSizes[period];
 
@@ -126,7 +132,7 @@ export class HealthDataService {
 
     const query = `
       SELECT
-        time_bucket($1, record_time) AS bucket,
+        time_bucket($1, record_time AT TIME ZONE $2, $2) AS bucket,
         AVG(heart_rate) AS avg_heart_rate,
         AVG(rest_heart_rate) AS avg_rest_heart_rate,
         AVG(blood_oxygen) AS avg_blood_oxygen,
@@ -141,13 +147,14 @@ export class HealthDataService {
         SUM(stand) AS total_stand,
         AVG(stress) AS avg_stress
       FROM health_data_points
-      WHERE user_id = $2
+      WHERE user_id = $3
       GROUP BY bucket
       ORDER BY bucket;
     `;
 
     const results = await this.healthDataRepository.query(query, [
       bucketSize,
+      userTimezone,
       userId,
     ]);
 

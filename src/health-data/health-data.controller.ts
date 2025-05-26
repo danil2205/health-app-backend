@@ -18,8 +18,11 @@ export class HealthDataController {
 
   @UseGuards(AuthGuard)
   @Get()
-  async getHealthDataByUserId(@Request() req): Promise<AllPeriodsHealthData> {
-    return this.healthDataService.getHealthDataByUserId(req.user.id);
+  async getHealthDataByUserId(
+    @Request() req,
+    @Query('timezone') timezone: string,
+  ): Promise<AllPeriodsHealthData> {
+    return this.healthDataService.getHealthDataByUserId(req.user.id, timezone);
   }
 
   // @UseGuards(AuthGuard)
