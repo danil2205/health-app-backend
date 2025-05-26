@@ -1,5 +1,5 @@
 export class GetHealthDataResponseDto {
-  recordTime: string;
+  recordTime: Date;
   avgHeartRate: number;
   avgRestHeartRate: number;
   // avgAfibVal: number; 
@@ -10,7 +10,7 @@ export class GetHealthDataResponseDto {
   avgPai: number;
   avgSleepScore: number;
   totalSleepTime: number;
-  sleepingStatus: string;
+  sleepingStatus: number;
   totalSteps: number;
   totalStand: number;
   avgStress: number;

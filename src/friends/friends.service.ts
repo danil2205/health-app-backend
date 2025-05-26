@@ -141,9 +141,7 @@ export class FriendsService {
       }),
     );
 
-    return result.filter(
-      (request) => request !== null,
-    );
+    return result.filter((request) => request !== null);
   }
 
   async getPendingFriendRequests(

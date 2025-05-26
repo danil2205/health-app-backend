@@ -26,15 +26,19 @@ export class HealthDataPointDto {
   bloodOxygen: number;
 
   @IsInt()
+  @Min(0)
   calories: number;
 
   @IsInt()
+  @Min(0)
   distance: number;
 
   @IsInt()
+  @Min(0)
   fatBurning: number;
 
   @IsInt()
+  @Min(0)
   pai: number;
 
   @IsObject()

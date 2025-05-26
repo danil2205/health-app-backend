@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, Index, PrimaryColumn } from 'typeorm';
 
 interface Profile {
   age: number;
@@ -43,28 +43,13 @@ interface NapInfo {
   stop: number;
 }
 
-interface HealthDataPoint {
-  recordTime: string;
-  heartRate: number;
-  restHeartRate: number;
-  afib: AfibInfo[];
-  bloodOxygen: number;
-  calories: number;
-  distance: number;
-  fatBurning: number;
-  pai: number;
-  sleepInfo: SleepInfo;
-  sleepStage: StageInfo[];
-  sleepingStatus: number;
-  sleepNap: NapInfo[];
-  steps: number;
-  stand: number; // in hours
-  stress: number;
-}
+@Entity('user_devices')
+export class UserDevice {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
 
-@Entity('health_data2')
-export class HealthData {
-  @PrimaryColumn('uuid', { name: 'user_id' })
+  @Column('uuid', { name: 'user_id' })
+  @Index()
   userId: string;
 
   @Column('varchar', { name: 'watch_name' })
@@ -75,7 +60,64 @@ export class HealthData {
 
   @Column('integer')
   battery: number;
+}
 
-  @Column('jsonb', { array: false, default: () => "'[]'" })
-  data: HealthDataPoint[];
+@Entity('health_data_points')
+@Index(['userId', 'recordTime'])
+export class HealthDataPoint {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column('uuid', { name: 'user_id' })
+  @Index()
+  userId: string;
+
+  @PrimaryColumn('timestamp with time zone', { name: 'record_time' })
+  @Index()
+  recordTime: Date;
+
+  @Column('integer', { name: 'heart_rate' })
+  heartRate: number;
+
+  @Column('integer', { name: 'rest_heart_rate' })
+  restHeartRate: number;
+
+  @Column('integer', { name: 'blood_oxygen' })
+  bloodOxygen: number;
+
+  @Column('integer', { name: 'stress' })
+  stress: number;
+
+  @Column('integer', { name: 'calories', default: 0 })
+  calories: number;
+
+  @Column('integer', { name: 'distance', default: 0 })
+  distance: number;
+
+  @Column('integer', { name: 'steps', default: 0 })
+  steps: number;
+
+  @Column('integer', { name: 'stand', default: 0 })
+  stand: number;
+
+  @Column('integer', { name: 'fat_burning' })
+  fatBurning: number;
+
+  @Column('integer', { name: 'pai' })
+  pai: number;
+
+  @Column('jsonb', { name: 'sleep_info' })
+  sleepInfo: SleepInfo;
+
+  @Column('jsonb', { name: 'sleep_stage' })
+  sleepStage: StageInfo[];
+
+  @Column('integer', { name: 'sleeping_status' })
+  sleepingStatus: number;
+
+  @Column('jsonb', { name: 'sleep_nap' })
+  sleepNap: NapInfo[];
+
+  @Column('jsonb', { name: 'afib' })
+  afib: AfibInfo[];
 }

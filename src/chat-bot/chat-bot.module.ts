@@ -4,10 +4,10 @@ import { ChatBotController } from './chat-bot.controller';
 import { AuthModule } from '../auth/auth.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Chat } from './chat.entity';
-import { HealthData } from 'src/health-data/entity/health-data.entity';
+import { HealthDataPoint } from '../health-data/entity/health-data.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Chat, HealthData]), AuthModule],
+  imports: [TypeOrmModule.forFeature([Chat, HealthDataPoint]), AuthModule],
   providers: [ChatBotService],
   controllers: [ChatBotController],
 })

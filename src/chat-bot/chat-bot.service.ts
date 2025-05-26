@@ -12,7 +12,7 @@ import { Chat, History } from './chat.entity';
 import { Repository } from 'typeorm';
 import { SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION_DB } from './chat-bot.config';
 import { z } from 'zod';
-import { HealthData } from 'src/health-data/entity/health-data.entity';
+import { HealthDataPoint } from 'src/health-data/entity/health-data.entity';
 
 @Injectable()
 export class ChatBotService {
@@ -20,8 +20,8 @@ export class ChatBotService {
 
   constructor(
     private readonly configService: ConfigService,
-    @InjectRepository(HealthData)
-    private readonly healthDataRepository: Repository<HealthData>,
+    @InjectRepository(HealthDataPoint)
+    private readonly HealthDataPointRepository: Repository<HealthDataPoint>,
     @InjectRepository(Chat) private readonly chatRepository: Repository<Chat>,
   ) {
     const apiKey = this.configService.get('GOOGLE_GENERATIVE_AI_API_KEY');
@@ -149,7 +149,7 @@ export class ChatBotService {
 
     let data: any;
     try {
-      data = await this.healthDataRepository.query(query);
+      data = await this.HealthDataPointRepository.query(query);
     } catch (e: any) {
       if (e.message.includes('relation "unicorns" does not exist')) {
         console.log(

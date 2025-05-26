@@ -1,3 +1,4 @@
+import { HealthMetric } from '../health-data/health-data-sharing.service';
 import {
   Column,
   CreateDateColumn,
@@ -30,6 +31,12 @@ export class UserFriends {
     default: FriendshipStatus.PENDING,
   })
   status: FriendshipStatus;
+
+  @Column('jsonb', { name: 'requester_shared_metrics', default: () => "'[]'" })
+  requesterSharedMetrics: HealthMetric[];
+
+  @Column('jsonb', { name: 'receiver_shared_metrics', default: () => "'[]'" })
+  receiverSharedMetrics: HealthMetric[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
