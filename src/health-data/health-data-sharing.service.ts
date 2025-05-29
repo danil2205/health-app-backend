@@ -7,16 +7,16 @@ import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
 
 export enum HealthMetric {
-  HEART_RATE = 'heartRate',
-  REST_HEART_RATE = 'restHeartRate',
+  HEART_RATE = 'heart_rate',
+  REST_HEART_RATE = 'rest_heart_rate',
   // AFIB = 'afib',
-  BLOOD_OXYGEN = 'bloodOxygen',
+  BLOOD_OXYGEN = 'blood_oxygen',
   CALORIES = 'calories',
   DISTANCE = 'distance',
-  FAT_BURNING = 'fatBurning',
+  FAT_BURNING = 'fat_burning',
   PAI = 'pai',
-  SLEEP_SCORE = 'sleepScore',
-  SLEEP_TIME = 'sleepTime',
+  SLEEP_SCORE = 'sleep_score',
+  SLEEP_TIME = 'sleep_time',
   STEPS = 'steps',
   STAND = 'stand',
   STRESS = 'stress',
@@ -72,6 +72,7 @@ export class HealthDataSharingService {
   async getFriendHealthData(
     userId: string,
     friendId: string,
+    timezone: string,
   ): Promise<Partial<AllPeriodsHealthData>> {
     const friendship = await this.getFriendship(userId, friendId);
 
@@ -82,8 +83,10 @@ export class HealthDataSharingService {
 
     if (sharedMetrics.length === 0) return {};
 
-    const healthData =
-      await this.healthDataService.getHealthDataByUserId(friendId);
+    const healthData = await this.healthDataService.getHealthDataByUserId(
+      friendId,
+      timezone,
+    );
 
     return this.filterHealthDataByMetrics(healthData, sharedMetrics);
   }

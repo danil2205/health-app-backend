@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Request,
   UseGuards,
 } from '@nestjs/common';
@@ -34,10 +35,12 @@ export class HealthDataSharingController {
   async getFriendHealthData(
     @Request() req,
     @Param('friendId') friendId: string,
+    @Query('timezone') timezone: string,
   ) {
     return this.healthDataSharingService.getFriendHealthData(
       req.user.id,
       friendId,
+      timezone,
     );
   }
 

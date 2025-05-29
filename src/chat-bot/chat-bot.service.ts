@@ -21,7 +21,7 @@ export class ChatBotService {
   constructor(
     private readonly configService: ConfigService,
     @InjectRepository(HealthDataPoint)
-    private readonly HealthDataPointRepository: Repository<HealthDataPoint>,
+    private readonly healthDataPointRepository: Repository<HealthDataPoint>,
     @InjectRepository(Chat) private readonly chatRepository: Repository<Chat>,
   ) {
     const apiKey = this.configService.get('GOOGLE_GENERATIVE_AI_API_KEY');
@@ -149,7 +149,7 @@ export class ChatBotService {
 
     let data: any;
     try {
-      data = await this.HealthDataPointRepository.query(query);
+      data = await this.healthDataPointRepository.query(query);
     } catch (e: any) {
       if (e.message.includes('relation "unicorns" does not exist')) {
         console.log(

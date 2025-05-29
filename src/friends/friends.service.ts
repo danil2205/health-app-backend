@@ -30,21 +30,27 @@ export class FriendsService {
 
     const friends = await Promise.all(
       acceptedFriendships.map(async (friendship) => {
-        const friendId =
-          friendship.requesterId === userId
-            ? friendship.receiverId
-            : friendship.requesterId;
-        return await this.userRepository.findOne({ where: { id: friendId } });
+        const isRequester = friendship.requesterId === userId;
+        const friendId = isRequester
+          ? friendship.receiverId
+          : friendship.requesterId;
+          
+        const friend = await this.userRepository.findOne({
+          where: { id: friendId },
+        });
+
+        return {
+          id: friend!!.id,
+          username: friend!!.username,
+          avatar: friend!!.avatar,
+          sharedMetrics: isRequester
+            ? friendship.requesterSharedMetrics
+            : friendship.receiverSharedMetrics,
+        };
       }),
     );
 
-    return friends
-      .filter((friend) => friend !== null)
-      .map((friend) => ({
-        id: friend.id,
-        username: friend.username,
-        avatar: friend.avatar,
-      }));
+    return friends.filter((friend) => friend !== null);
   }
 
   async sendFriendRequest(
@@ -166,6 +172,8 @@ export class FriendsService {
         { requesterId: friendId, receiverId: userId },
       ],
     });
+
+    console.log(friendship);
 
     if (!friendship) {
       throw new NotFoundException('Friendship not found');
