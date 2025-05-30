@@ -69,55 +69,36 @@ export class ChatBotService {
     );
     console.log('Generated SQL Query:', generatedQuery);
     const resultsFromDb = await this.runGenerateSQLQuery(generatedQuery);
-    // console.log('Results from DB:', resultsFromDb);
+    console.log('Results from DB:', resultsFromDb);
 
     const result = await generateText({
       model: modelInstance,
       system: SYSTEM_INSTRUCTION,
       prompt: query + `\n Health Data: ${JSON.stringify(resultsFromDb)}`,
-      tools: {
-        getChart: tool({
-          description: 'Show a chart based on the user health data',
-          parameters: z.object({}),
-          execute: async () => {
-            const metricType = Object.keys(resultsFromDb[0]).find(
-              (key) => key != 'recordTime',
-            );
-            const data = resultsFromDb.map((item) => ({
-              recordTime: item.recordTime,
-              value: metricType ? item[metricType] : undefined,
-            }));
-            return JSON.stringify({ data, metricType });
-          },
-        }),
-      },
       maxTokens: 2048,
     });
 
-    const finalResult = result.toolResults.at(-1)?.result ?? result.text;
-
     chat.history.push({
       query,
-      response: finalResult,
+      response: result.text,
       createdAt: new Date().toISOString(),
     });
     await this.chatRepository.save(chat);
 
-    return finalResult;
+    return result.text;
   }
 
   generateQuery = async (input: string) => {
-    'use server';
     try {
       const result = await generateObject({
         model: google('gemini-2.5-flash-preview-04-17'),
         system: SYSTEM_INSTRUCTION_DB,
-        prompt: `Generate a PostgreSQL query to retrieve the data the user wants from the "health_data2" table. The user's request is: ${input}`,
+        prompt: `Generate a PostgreSQL query to retrieve the data the user wants from the "health_data_points" table. The user's request is: ${input}`,
         schema: z.object({
           query: z
             .string()
             .describe(
-              "The SQL query to retrieve the data. Ensure it's valid PostgreSQL and targets the health_data2 table, unnesting the 'data' JSONB array with jsonb_array_elements when accessing time-series data points. Always cast JSONB numeric fields to appropriate SQL numeric types (e.g., ::integer, ::numeric, ::float). Cast recordTime to ::timestamp for date operations.",
+              "The SQL query to retrieve the data. Ensure it's valid PostgreSQL and targets the health_data_points table. JSONB columns like 'sleep_info' should be queried using the '->>' operator. Remember that 'record_time' is a timestamp with time zone and can be used directly in date operations.",
             ),
         }),
       });
@@ -131,7 +112,6 @@ export class ChatBotService {
   };
 
   runGenerateSQLQuery = async (query: string) => {
-    'use server';
     if (
       !query.trim().toLowerCase().startsWith('select') ||
       query.trim().toLowerCase().includes('drop') ||

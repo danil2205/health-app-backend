@@ -168,8 +168,6 @@ export class HealthDataService {
   ): HealthDataPoint {
     const dataPoint = healthDataDto.data;
 
-    console.log({ dataPoint, dailyTotals });
-
     return this.healthDataRepository.create({
       userId,
       recordTime: new Date(dataPoint.recordTime),

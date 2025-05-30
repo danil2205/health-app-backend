@@ -173,8 +173,6 @@ export class FriendsService {
       ],
     });
 
-    console.log(friendship);
-
     if (!friendship) {
       throw new NotFoundException('Friendship not found');
     }
