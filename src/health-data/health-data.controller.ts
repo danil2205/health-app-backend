@@ -10,7 +10,7 @@ import {
 import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { HealthDataDto } from './dto/health-data.dto';
-import { HealthDataPoint } from './entity/health-data.entity';
+import { HealthDataPoint } from './health-data.entity';
 
 @Controller('health')
 export class HealthDataController {
@@ -23,6 +23,20 @@ export class HealthDataController {
     @Query('timezone') timezone: string,
   ): Promise<AllPeriodsHealthData> {
     return this.healthDataService.getHealthDataByUserId(req.user.id, timezone);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('daily')
+  async getDailyHealthDataPoints(
+    @Request() req,
+    @Query('timezone') timezone: string,
+    @Query('offset') offset: number = 0,
+  ): Promise<HealthDataPoint[]> {
+    return this.healthDataService.getDailyHealthDataPoints(
+      req.user.id,
+      timezone,
+      offset,
+    );
   }
 
   // @UseGuards(AuthGuard)

@@ -1,3 +1,4 @@
+import { Exclude } from 'class-transformer';
 import { Entity, Column, PrimaryGeneratedColumn, Index, PrimaryColumn } from 'typeorm';
 
 interface Profile {
@@ -31,7 +32,7 @@ interface AfibInfo {
   duration: number;
 }
 
-interface StageInfo {
+export interface StageInfo {
   model: number;
   start: number;
   stop: number;
@@ -65,9 +66,11 @@ export class UserDevice {
 @Entity('health_data_points')
 @Index(['userId', 'recordTime'])
 export class HealthDataPoint {
+  @Exclude()
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Exclude()
   @Column('uuid', { name: 'user_id' })
   @Index()
   userId: string;

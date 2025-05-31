@@ -4,11 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { HealthDataPoint, UserDevice } from './entity/health-data.entity';
+import { HealthDataPoint, UserDevice } from './health-data.entity';
 import { Repository } from 'typeorm';
 import { HealthDataDto } from './dto/health-data.dto';
 import { User } from '../users/users.entity';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
+import { startOfDay, endOfDay, addDays } from 'date-fns';
+import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
+import { plainToInstance } from 'class-transformer';
 
 export enum TimePeriod {
   DAY = 'day',
@@ -119,6 +122,40 @@ export class HealthDataService {
     }, {} as AllPeriodsHealthData);
   }
 
+  async getDailyHealthDataPoints(
+    userId: string,
+    userTimezone: string,
+    dayOffset: number = 0,
+  ): Promise<HealthDataPoint[]> {
+    const nowInUserTz = toZonedTime(new Date(), userTimezone);
+
+    const targetDateInUserTz = addDays(nowInUserTz, dayOffset);
+
+    const startOfTargetDayInUserTz = startOfDay(targetDateInUserTz);
+    const endOfTargetDayInUserTz = endOfDay(targetDateInUserTz);
+
+    const startOfTargetDayUtc = fromZonedTime(
+      startOfTargetDayInUserTz,
+      userTimezone,
+    );
+    const endOfTargetDayUtc = fromZonedTime(
+      endOfTargetDayInUserTz,
+      userTimezone,
+    );
+
+    const healthData = await this.healthDataRepository
+      .createQueryBuilder('hdp')
+      .where('hdp.userId = :userId', { userId })
+      .andWhere('hdp.recordTime >= :startOfDay', {
+        startOfDay: startOfTargetDayUtc,
+      })
+      .andWhere('hdp.recordTime <= :endOfDay', { endOfDay: endOfTargetDayUtc })
+      .orderBy('hdp.recordTime', 'ASC')
+      .getMany();
+
+    return plainToInstance(HealthDataPoint, healthData);
+  }
+
   async getHealthDataByPeriod(
     userId: string,
     period: TimePeriod,
@@ -128,6 +165,12 @@ export class HealthDataService {
 
     if (!bucketSize) {
       throw new BadRequestException(`Invalid time period: ${period}`);
+    }
+
+    let sleepData = ''
+
+    if (period === TimePeriod.DAY) {
+      sleepData = `, (array_agg(sleep_stage ORDER BY record_time DESC))[1] AS sleep_stage_data`
     }
 
     const query = `
@@ -146,6 +189,7 @@ export class HealthDataService {
         AVG(sleeping_status) AS sleeping_status,
         SUM(steps) AS total_steps,
         SUM(stand) AS total_stand
+        ${sleepData}
       FROM health_data_points
       WHERE user_id = $3
       GROUP BY bucket
@@ -158,7 +202,7 @@ export class HealthDataService {
       userId,
     ]);
 
-    return this.mapResultsToGroupedData(results, userTimezone);
+    return this.mapResultsToGroupedData(results);
   }
 
   private createHealthDataPoint(
@@ -220,17 +264,17 @@ export class HealthDataService {
     return result[0];
   }
 
-  private mapResultsToGroupedData(
-    results: any[],
-    userTimezone: string,
-  ): DailyGroupedHealthData {
+  private mapResultsToGroupedData(results: any[]): DailyGroupedHealthData {
     const groupedData: DailyGroupedHealthData = {};
 
     results.forEach((result) => {
       if (!result.bucket) return;
 
       const recordTime = new Date(result.bucket);
-      const dateKey = this.convertUtcToZonedDate(recordTime, userTimezone);
+      const yyyy = recordTime.getFullYear();
+      const mm = String(recordTime.getMonth() + 1).padStart(2, '0');
+      const dd = String(recordTime.getDate()).padStart(2, '0');
+      const dateKey = `${yyyy}-${mm}-${dd}`;
 
       if (!groupedData[dateKey]) {
         groupedData[dateKey] = [];
@@ -251,25 +295,12 @@ export class HealthDataService {
         totalSteps: parseFloat(result.total_steps),
         totalStand: parseFloat(result.total_stand),
         avgStress: parseFloat(result.avg_stress),
+        sleepStageData: result.sleep_stage_data
       };
 
       groupedData[dateKey].push(dataPoint);
     });
 
     return groupedData;
-  }
-
-  private convertUtcToZonedDate(utcDate: Date, timeZone: string): string {
-    const zonedTimeString = utcDate.toLocaleString('en-CA', {
-      timeZone,
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour12: false,
-    });
-
-    const dateKey = zonedTimeString.split(',')[0];
-
-    return dateKey;
   }
 }

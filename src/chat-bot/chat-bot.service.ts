@@ -12,7 +12,7 @@ import { Chat, History } from './chat.entity';
 import { Repository } from 'typeorm';
 import { SYSTEM_INSTRUCTION, SYSTEM_INSTRUCTION_DB } from './chat-bot.config';
 import { z } from 'zod';
-import { HealthDataPoint } from 'src/health-data/entity/health-data.entity';
+import { HealthDataPoint } from 'src/health-data/health-data.entity';
 
 @Injectable()
 export class ChatBotService {
