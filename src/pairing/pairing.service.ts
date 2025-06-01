@@ -119,6 +119,7 @@ export class PairingService {
 
     user.watchId = pairingCode.watchId;
     pairingCode.isMatched = true;
+    pairingCode.phoneCode = null;
     await this.pairingCodeRepository.save(pairingCode);
     await this.userRepository.save(user);
 
@@ -132,6 +133,12 @@ export class PairingService {
 
     if (!pairingCode) {
       throw new NotFoundException();
+    }
+
+    const pairingIsMatched = pairingCode.isMatched;
+
+    if (pairingIsMatched) {
+      await this.pairingCodeRepository.delete(pairingCode.id);
     }
 
     return { isMatched: pairingCode.isMatched };

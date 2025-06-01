@@ -4,14 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { HealthDataPoint, UserDevice } from './health-data.entity';
+import { HealthDataPoint } from './health-data.entity';
 import { Repository } from 'typeorm';
-import { HealthDataDto } from './dto/health-data.dto';
 import { User } from '../users/users.entity';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
 import { startOfDay, endOfDay, addDays } from 'date-fns';
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
 import { plainToInstance } from 'class-transformer';
+import { HealthDataPointDto } from './dto/health-data-point.dto';
 
 export enum TimePeriod {
   DAY = 'day',
@@ -50,41 +50,13 @@ export class HealthDataService {
   constructor(
     @InjectRepository(HealthDataPoint)
     private healthDataRepository: Repository<HealthDataPoint>,
-    @InjectRepository(UserDevice)
-    private readonly userDeviceRepository: Repository<UserDevice>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
   ) {}
 
-  private async updateUserDevice(
-    userId: string,
-    healthDataDto: HealthDataDto,
-  ): Promise<void> {
-    let userDevice = await this.userDeviceRepository.findOne({
-      where: { userId },
-    });
-
-    if (!userDevice) {
-      userDevice = this.userDeviceRepository.create({
-        userId,
-        watchName: healthDataDto.watchName,
-        profile: healthDataDto.profile,
-        battery: healthDataDto.battery,
-      });
-    } else {
-      Object.assign(userDevice, {
-        watchName: healthDataDto.watchName,
-        profile: healthDataDto.profile,
-        battery: healthDataDto.battery,
-      });
-    }
-
-    await this.userDeviceRepository.save(userDevice);
-  }
-
   async saveHealthData(
     watchId: string,
-    healthDataDto: HealthDataDto,
+    healthDataPointDto: HealthDataPointDto,
   ): Promise<HealthDataPoint> {
     const user = await this.userRepository.findOne({ where: { watchId } });
 
@@ -92,13 +64,11 @@ export class HealthDataService {
       throw new NotFoundException(`User with watch id ${watchId} not found`);
     }
 
-    await this.updateUserDevice(user.id, healthDataDto);
-
     const dailyTotals = await this.calculateDailyTotals(user.id);
 
     const healthDataPoint = this.createHealthDataPoint(
       user.id,
-      healthDataDto,
+      healthDataPointDto,
       dailyTotals,
     );
 
@@ -167,10 +137,10 @@ export class HealthDataService {
       throw new BadRequestException(`Invalid time period: ${period}`);
     }
 
-    let sleepData = ''
+    let sleepData = '';
 
     if (period === TimePeriod.DAY) {
-      sleepData = `, (array_agg(sleep_stage ORDER BY record_time DESC))[1] AS sleep_stage_data`
+      sleepData = `, (array_agg(sleep_stage ORDER BY record_time DESC))[1] AS sleep_stage_data`;
     }
 
     const query = `
@@ -207,29 +177,27 @@ export class HealthDataService {
 
   private createHealthDataPoint(
     userId: string,
-    healthDataDto: HealthDataDto,
+    healthDataPointDto: HealthDataPointDto,
     dailyTotals: CumulativeMetrics,
   ): HealthDataPoint {
-    const dataPoint = healthDataDto.data;
-
     return this.healthDataRepository.create({
       userId,
-      recordTime: new Date(dataPoint.recordTime),
-      heartRate: dataPoint.heartRate,
-      restHeartRate: dataPoint.restHeartRate,
-      bloodOxygen: dataPoint.bloodOxygen,
-      stress: dataPoint.stress,
-      fatBurning: dataPoint.fatBurning,
-      pai: dataPoint.pai,
-      sleepingStatus: dataPoint.sleepingStatus,
-      calories: Math.max(0, dataPoint.calories - dailyTotals.calories),
-      distance: Math.max(0, dataPoint.distance - dailyTotals.distance),
-      steps: Math.max(0, dataPoint.steps - dailyTotals.steps),
-      stand: Math.max(0, dataPoint.stand - dailyTotals.stand),
-      sleepInfo: dataPoint.sleepInfo,
-      sleepStage: dataPoint.sleepStage,
-      sleepNap: dataPoint.sleepNap,
-      afib: dataPoint.afib,
+      recordTime: new Date(healthDataPointDto.recordTime),
+      heartRate: healthDataPointDto.heartRate,
+      restHeartRate: healthDataPointDto.restHeartRate,
+      bloodOxygen: healthDataPointDto.bloodOxygen,
+      stress: healthDataPointDto.stress,
+      fatBurning: healthDataPointDto.fatBurning,
+      pai: healthDataPointDto.pai,
+      sleepingStatus: healthDataPointDto.sleepingStatus,
+      calories: Math.max(0, healthDataPointDto.calories - dailyTotals.calories),
+      distance: Math.max(0, healthDataPointDto.distance - dailyTotals.distance),
+      steps: Math.max(0, healthDataPointDto.steps - dailyTotals.steps),
+      stand: Math.max(0, healthDataPointDto.stand - dailyTotals.stand),
+      sleepInfo: healthDataPointDto.sleepInfo,
+      sleepStage: healthDataPointDto.sleepStage,
+      sleepNap: healthDataPointDto.sleepNap,
+      afib: healthDataPointDto.afib,
     });
   }
 
@@ -295,7 +263,7 @@ export class HealthDataService {
         totalSteps: parseFloat(result.total_steps),
         totalStand: parseFloat(result.total_stand),
         avgStress: parseFloat(result.avg_stress),
-        sleepStageData: result.sleep_stage_data
+        sleepStageData: result.sleep_stage_data,
       };
 
       groupedData[dateKey].push(dataPoint);

@@ -44,25 +44,6 @@ interface NapInfo {
   stop: number;
 }
 
-@Entity('user_devices')
-export class UserDevice {
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Column('uuid', { name: 'user_id' })
-  @Index()
-  userId: string;
-
-  @Column('varchar', { name: 'watch_name' })
-  watchName: string;
-
-  @Column('jsonb')
-  profile: Profile;
-
-  @Column('integer')
-  battery: number;
-}
-
 @Entity('health_data_points')
 @Index(['userId', 'recordTime'])
 export class HealthDataPoint {

@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
-import { HealthDataDto } from './dto/health-data.dto';
 import { HealthDataPoint } from './health-data.entity';
+import { HealthDataPointDto } from './dto/health-data-point.dto';
 
 @Controller('health')
 export class HealthDataController {
@@ -43,8 +43,8 @@ export class HealthDataController {
   @Post('save')
   async saveHealthData(
     @Query('watchId') watchId: string,
-    @Body() healthData: HealthDataDto,
+    @Body() healthDataPoint: HealthDataPointDto,
   ): Promise<HealthDataPoint> {
-    return this.healthDataService.saveHealthData(watchId, healthData);
+    return this.healthDataService.saveHealthData(watchId, healthDataPoint);
   }
 }

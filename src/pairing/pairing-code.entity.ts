@@ -5,8 +5,8 @@ export class PairingCode {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'phone_code' })
-  phoneCode: string;
+  @Column({ name: 'phone_code', type: 'text', nullable: true })
+  phoneCode: string | null;
 
   @Column({ name: 'is_used', default: false })
   isUsed: boolean;
