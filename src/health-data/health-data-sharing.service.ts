@@ -15,8 +15,6 @@ export enum HealthMetric {
   DISTANCE = 'distance',
   FAT_BURNING = 'fat_burning',
   PAI = 'pai',
-  SLEEP_SCORE = 'sleep_score',
-  SLEEP_TIME = 'sleep_time',
   SLEEP_DATA = 'sleep_data',
   STEPS = 'steps',
   STAND = 'stand',
@@ -27,7 +25,7 @@ export enum HealthMetric {
 export class HealthDataSharingService {
   private readonly metricToPropertyMap: Record<
     HealthMetric,
-    keyof GetHealthDataResponseDto
+    keyof GetHealthDataResponseDto | (keyof GetHealthDataResponseDto)[]
   > = {
     [HealthMetric.HEART_RATE]: 'avgHeartRate',
     [HealthMetric.REST_HEART_RATE]: 'avgRestHeartRate',
@@ -37,9 +35,7 @@ export class HealthDataSharingService {
     [HealthMetric.DISTANCE]: 'totalDistance',
     [HealthMetric.FAT_BURNING]: 'avgFatBurning',
     [HealthMetric.PAI]: 'avgPai',
-    [HealthMetric.SLEEP_SCORE]: 'avgSleepScore',
-    [HealthMetric.SLEEP_TIME]: 'totalSleepTime',
-    [HealthMetric.SLEEP_DATA]: 'sleepStageData',
+    [HealthMetric.SLEEP_DATA]: ['avgSleepScore', 'totalSleepTime', 'sleepStageData'],
     [HealthMetric.STEPS]: 'totalSteps',
     [HealthMetric.STAND]: 'totalStand',
     [HealthMetric.STRESS]: 'avgStress',
@@ -122,12 +118,23 @@ export class HealthDataSharingService {
             const filteredPoint: any = { recordTime };
 
             for (const metric of sharedMetrics) {
-              const property = this.metricToPropertyMap[metric];
-              if (property && rest[property] !== undefined) {
-                filteredPoint[property] = rest[property];
+              const propertiesOrProperty = this.metricToPropertyMap[metric];
+              if (propertiesOrProperty) {
+                if (Array.isArray(propertiesOrProperty)) {
+                  for (const property of propertiesOrProperty) {
+                    if (rest[property] !== undefined) {
+                      filteredPoint[property] = rest[property];
+                    }
+                  }
+                } else {
+                  const property =
+                    propertiesOrProperty as keyof GetHealthDataResponseDto;
+                  if (rest[property] !== undefined) {
+                    filteredPoint[property] = rest[property];
+                  }
+                }
               }
             }
-
             return filteredPoint;
           },
         );

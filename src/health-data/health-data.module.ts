@@ -2,7 +2,7 @@ import { Module } from '@nestjs/common';
 import { HealthDataService } from './health-data.service';
 import { HealthDataController } from './health-data.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { HealthDataPoint } from './health-data.entity';
+import { HealthDataPoint } from './health-data-point.entity';
 import { User } from '../users/users.entity';
 import { AuthModule } from '../auth/auth.module';
 import { UserFriends } from '../friends/user-friends.entity';

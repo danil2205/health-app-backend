@@ -1,4 +1,4 @@
-import { StageInfo } from '../../health-data.entity';
+import { StageInfo } from '../../health-data-point.entity';
 
 export class GetHealthDataResponseDto {
   recordTime: Date;

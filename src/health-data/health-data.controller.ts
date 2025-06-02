@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
-import { HealthDataPoint } from './health-data.entity';
+import { HealthDataPoint } from './health-data-point.entity';
 import { HealthDataPointDto } from './dto/health-data-point.dto';
 
 @Controller('health')

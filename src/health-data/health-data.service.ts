@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { HealthDataPoint } from './health-data.entity';
+import { HealthDataPoint } from './health-data-point.entity';
 import { Repository } from 'typeorm';
 import { User } from '../users/users.entity';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';

@@ -1,20 +1,6 @@
 import { Exclude } from 'class-transformer';
 import { Entity, Column, PrimaryGeneratedColumn, Index, PrimaryColumn } from 'typeorm';
 
-interface Profile {
-  age: number;
-  height: number;
-  weight: number;
-  gender: number;
-  nickName: string;
-  region: string;
-  birth: {
-    year: number;
-    month: number;
-    day: number;
-  };
-}
-
 interface SleepInfo {
   score: number;
   startTime: number;
@@ -48,11 +34,7 @@ interface NapInfo {
 @Index(['userId', 'recordTime'])
 export class HealthDataPoint {
   @Exclude()
-  @PrimaryGeneratedColumn('uuid')
-  id: string;
-
-  @Exclude()
-  @Column('uuid', { name: 'user_id' })
+  @PrimaryColumn('uuid', { name: 'user_id' })
   @Index()
   userId: string;
 

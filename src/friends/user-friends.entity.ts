@@ -3,6 +3,7 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
@@ -15,14 +16,17 @@ export enum FriendshipStatus {
 }
 
 @Entity('user_friends')
+@Index(['requesterId', 'receiverId'])
 export class UserFriends {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column('uuid', { name: 'requester_id' })
+  @Index()
   requesterId: string;
 
   @Column('uuid', { name: 'receiver_id' })
+  @Index()
   receiverId: string;
 
   @Column({

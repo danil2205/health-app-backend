@@ -1,11 +1,12 @@
-import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
 export class PairingCode {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'phone_code', type: 'text', nullable: true })
+  @Column({ name: 'phone_code', type: 'varchar', length: 5, nullable: true })
+  @Index()
   phoneCode: string | null;
 
   @Column({ name: 'is_used', default: false })
@@ -14,13 +15,15 @@ export class PairingCode {
   @Column({ name: 'is_matched', default: false })
   isMatched: boolean;
 
-  @Column({ name: 'watch_code' })
+  @Column({ name: 'watch_code', type: 'varchar', length: 5 })
   watchCode: string;
 
   @Column({ name: 'user_id' })
+  @Index()
   userId: string;
 
   @Column({ name: 'watch_id', nullable: true })
+  @Index()
   watchId: string;
 
   @CreateDateColumn({ name: 'created_at' })
@@ -33,3 +36,4 @@ export class PairingCode {
   })
   expiresAt: Date;
 }
+
