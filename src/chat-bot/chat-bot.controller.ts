@@ -3,6 +3,7 @@ import { ChatBotService } from './chat-bot.service';
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { SendPromptDto } from './dto/send-prompt.dto';
 import { History } from './chat.entity';
+import { Response } from 'express';
 
 @Controller('chat')
 export class ChatBotController {
@@ -23,12 +24,13 @@ export class ChatBotController {
   async generateResponse(
     @Request() req,
     @Body() sendPromptDto: SendPromptDto,
+    @Res() res: Response,
   ) {
     const result = await this.chatBotService.generateResponse(
       req.user.id,
       sendPromptDto,
     );
     
-    return result;
+    result.pipeTextStreamToResponse(res);
   }
 }

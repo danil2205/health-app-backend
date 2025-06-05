@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Request, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Get, Post, Put, Query, Request, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserDto } from '../users/dto/user.dto';
 import { AuthGuard } from './guards/auth.guard';
@@ -14,6 +14,13 @@ export class AuthController {
   @Get('me')
   async getMe(@Request() req) {
     return this.authService.validateToken(req.user.id);
+  }
+
+  @Get('check-username')
+  async checkUsername(@Query('username') username: string) {
+    const isAvailable = await this.authService.isUsernameAvailable(username);
+
+    return isAvailable;
   }
 
   @Post('signup')
@@ -39,7 +46,7 @@ export class AuthController {
         filename: (req: any, file, cb) => {
           const username = req.user.email.split('@')[0];
           const fileExtension = file.originalname.split('.').pop();
-          const filename = `avatar_${username}_${Date.now()}.${fileExtension}`
+          const filename = `avatar_${username}_${Date.now()}.${fileExtension}`;
           cb(null, filename);
         },
       }),

@@ -28,6 +28,11 @@ export class AuthService {
     return this.userService.findOneByEmail(email);
   }
 
+  async isUsernameAvailable(username: string) {
+    const user = await this.userService.findOneByUsername(username);
+    return !user;
+  }
+
   async validateToken(userId: string) {
     const user = await this.userService.findOneById(userId);
 

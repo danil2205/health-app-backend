@@ -1,4 +1,4 @@
-import { generateObject, generateText, tool } from 'ai';
+import { generateObject, generateText, streamText, tool } from 'ai';
 import {
   createGoogleGenerativeAI,
   google,
@@ -16,6 +16,7 @@ import { HealthDataPoint } from 'src/health-data/health-data-point.entity';
 
 @Injectable()
 export class ChatBotService {
+  private model: string;
   private googleAIProvider: GoogleGenerativeAIProvider;
 
   constructor(
@@ -26,6 +27,7 @@ export class ChatBotService {
   ) {
     const apiKey = this.configService.get('GOOGLE_GENERATIVE_AI_API_KEY');
     this.googleAIProvider = createGoogleGenerativeAI({ apiKey });
+    this.model = this.configService.get('GEMINI_MODEL') || 'gemini-1.5-flash';
   }
 
   async getChatHistory(
@@ -47,14 +49,10 @@ export class ChatBotService {
     );
   }
 
-  async generateResponse(
-    userId: string,
-    sendPromptDto: SendPromptDto,
-  ): Promise<string> {
+  async generateResponse(userId: string, sendPromptDto: SendPromptDto) {
     const { query } = sendPromptDto;
 
-    const configModel = this.configService.get('GEMINI_MODEL');
-    const modelInstance = this.googleAIProvider(configModel);
+    const modelInstance = this.googleAIProvider(this.model);
     let chat = await this.chatRepository.findOne({ where: { userId } });
 
     if (!chat) {
@@ -66,34 +64,36 @@ export class ChatBotService {
 
     const generatedQuery = await this.generateQuery(
       query + `\n user_id: ${userId}`,
+      this.model,
     );
     console.log('Generated SQL Query:', generatedQuery);
     const resultsFromDb = await this.runGenerateSQLQuery(generatedQuery);
     console.log('Results from DB:', resultsFromDb);
 
-    const result = await generateText({
+    const result = streamText({
       model: modelInstance,
       system: SYSTEM_INSTRUCTION,
       prompt: query + `\n Health Data: ${JSON.stringify(resultsFromDb)}`,
       maxTokens: 2048,
+      onFinish: async (res) => {
+        chat.history.push({
+          query,
+          response: res.text,
+          createdAt: new Date().toISOString(),
+        });
+        await this.chatRepository.save(chat);
+      },
     });
 
-    chat.history.push({
-      query,
-      response: result.text,
-      createdAt: new Date().toISOString(),
-    });
-    await this.chatRepository.save(chat);
-
-    return result.text;
+    return result;
   }
 
-  generateQuery = async (input: string) => {
+  generateQuery = async (input: string, model: string) => {
     try {
       const result = await generateObject({
-        model: google('gemini-2.5-flash-preview-04-17'),
+        model: google(model),
         system: SYSTEM_INSTRUCTION_DB,
-        prompt: `Generate a PostgreSQL query to retrieve the data the user wants from the "health_data_points" table. The user's request is: ${input}`,
+        prompt: `Generate a PostgreSQL query which starts with SELECT to retrieve the data the user wants from the "health_data_points" table. The user's request is: ${input}`,
         schema: z.object({
           query: z
             .string()
@@ -112,17 +112,20 @@ export class ChatBotService {
   };
 
   runGenerateSQLQuery = async (query: string) => {
+    const sanitizedQuery = query.trim().toLowerCase();
+
     if (
-      !query.trim().toLowerCase().startsWith('select') ||
-      query.trim().toLowerCase().includes('drop') ||
-      query.trim().toLowerCase().includes('delete') ||
-      query.trim().toLowerCase().includes('insert') ||
-      query.trim().toLowerCase().includes('update') ||
-      query.trim().toLowerCase().includes('alter') ||
-      query.trim().toLowerCase().includes('truncate') ||
-      query.trim().toLowerCase().includes('create') ||
-      query.trim().toLowerCase().includes('grant') ||
-      query.trim().toLowerCase().includes('revoke')
+      (!sanitizedQuery.startsWith('select') &&
+        !sanitizedQuery.startsWith('with')) ||
+      sanitizedQuery.includes('drop') ||
+      sanitizedQuery.includes('delete') ||
+      sanitizedQuery.includes('insert') ||
+      sanitizedQuery.includes('update') ||
+      sanitizedQuery.includes('alter') ||
+      sanitizedQuery.includes('truncate') ||
+      sanitizedQuery.includes('create') ||
+      sanitizedQuery.includes('grant') ||
+      sanitizedQuery.includes('revoke')
     ) {
       throw new Error('Only SELECT queries are allowed');
     }
