@@ -1,15 +1,25 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { HealthDataPoint } from './health-data-point.entity';
 import { Repository } from 'typeorm';
 import { User } from '../users/users.entity';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
-import { startOfDay, endOfDay, addDays } from 'date-fns';
-import { toZonedTime, fromZonedTime, format } from 'date-fns-tz';
+import {
+  startOfDay,
+  endOfDay,
+  addDays,
+  subDays,
+  startOfWeek,
+  endOfWeek,
+  addMonths,
+  endOfMonth,
+  endOfYear,
+  startOfMonth,
+  startOfYear,
+  addWeeks,
+  addYears,
+} from 'date-fns';
+import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { plainToInstance } from 'class-transformer';
 import { HealthDataPointDto } from './dto/health-data-point.dto';
 
@@ -20,14 +30,6 @@ export enum TimePeriod {
   SIX_MONTH = '6months',
   YEAR = 'year',
 }
-
-export type DailyGroupedHealthData = {
-  [date: string]: GetHealthDataResponseDto[];
-};
-
-export type AllPeriodsHealthData = {
-  [key in TimePeriod]: DailyGroupedHealthData;
-};
 
 interface CumulativeMetrics {
   calories: number;
@@ -75,43 +77,22 @@ export class HealthDataService {
     return await this.healthDataRepository.save(healthDataPoint);
   }
 
-  async getHealthDataByUserId(
-    userId: string,
-    userTimezone: string = 'UTC',
-  ): Promise<AllPeriodsHealthData> {
-    const periods = Object.values(TimePeriod) as TimePeriod[];
-    const results = await Promise.all(
-      periods.map((period) =>
-        this.getHealthDataByPeriod(userId, period, userTimezone),
-      ),
-    );
-
-    return periods.reduce((acc, period, idx) => {
-      acc[period] = results[idx];
-      return acc;
-    }, {} as AllPeriodsHealthData);
-  }
-
   async getDailyHealthDataPoints(
     userId: string,
-    userTimezone: string,
-    dayOffset: number = 0,
+    timezone: string,
+    offset: number,
   ): Promise<HealthDataPoint[]> {
-    const nowInUserTz = toZonedTime(new Date(), userTimezone);
-
-    const targetDateInUserTz = addDays(nowInUserTz, dayOffset);
+    const nowInUserTz = toZonedTime(new Date(), timezone);
+    const targetDateInUserTz = addDays(nowInUserTz, offset);
 
     const startOfTargetDayInUserTz = startOfDay(targetDateInUserTz);
     const endOfTargetDayInUserTz = endOfDay(targetDateInUserTz);
 
     const startOfTargetDayUtc = fromZonedTime(
       startOfTargetDayInUserTz,
-      userTimezone,
+      timezone,
     );
-    const endOfTargetDayUtc = fromZonedTime(
-      endOfTargetDayInUserTz,
-      userTimezone,
-    );
+    const endOfTargetDayUtc = fromZonedTime(endOfTargetDayInUserTz, timezone);
 
     const healthData = await this.healthDataRepository
       .createQueryBuilder('hdp')
@@ -128,51 +109,106 @@ export class HealthDataService {
 
   async getHealthDataByPeriod(
     userId: string,
+    timezone: string,
     period: TimePeriod,
-    userTimezone: string,
-  ): Promise<DailyGroupedHealthData> {
+    offset: number,
+  ): Promise<GetHealthDataResponseDto[]> {
     const bucketSize = this.bucketSizes[period];
+    const nowInUserTz = toZonedTime(new Date(), timezone);
 
-    if (!bucketSize) {
-      throw new BadRequestException(`Invalid time period: ${period}`);
+    let startDateInUserTz: Date;
+    let endDateInUserTz: Date;
+
+    switch (period) {
+      case 'week': {
+        const targetWeekStart = startOfWeek(addWeeks(nowInUserTz, offset), {
+          weekStartsOn: 1,
+        });
+
+        startDateInUserTz = startOfDay(targetWeekStart);
+        endDateInUserTz = endOfDay(
+          endOfWeek(targetWeekStart, { weekStartsOn: 1 }),
+        );
+        break;
+      }
+
+      case 'month': {
+        const targetMonthStart = startOfMonth(addMonths(nowInUserTz, offset));
+        startDateInUserTz = startOfDay(targetMonthStart);
+        endDateInUserTz = endOfDay(endOfMonth(targetMonthStart));
+        break;
+      }
+
+      case '6months': {
+        const targetStart = startOfMonth(addMonths(nowInUserTz, offset * 6));
+        const targetEnd = endOfMonth(addMonths(targetStart, 5));
+        startDateInUserTz = startOfDay(targetStart);
+        endDateInUserTz = endOfDay(targetEnd);
+        break;
+      }
+
+      case 'year': {
+        const targetYearStart = startOfYear(addYears(nowInUserTz, offset));
+        startDateInUserTz = startOfDay(targetYearStart);
+        endDateInUserTz = endOfDay(endOfYear(targetYearStart));
+        break;
+      }
+
+      default:
+        throw new Error(`Unsupported period: ${period}`);
     }
 
-    let sleepData = '';
-
-    if (period === TimePeriod.DAY) {
-      sleepData = `, (array_agg(sleep_stage ORDER BY record_time DESC))[1] AS sleep_stage_data`;
-    }
+    const startUtc = fromZonedTime(startDateInUserTz, timezone);
+    const endUtc = fromZonedTime(endDateInUserTz, timezone);
 
     const query = `
-      SELECT
-        time_bucket($1, record_time AT TIME ZONE $2) AS bucket,
-        AVG(heart_rate) FILTER (WHERE heart_rate IS NOT NULL AND heart_rate > 0 AND heart_rate < 255) AS avg_heart_rate,
-        AVG(rest_heart_rate) FILTER (WHERE rest_heart_rate IS NOT NULL AND rest_heart_rate > 0 AND rest_heart_rate < 255) AS avg_rest_heart_rate,
-        AVG(blood_oxygen) FILTER (WHERE blood_oxygen IS NOT NULL AND blood_oxygen > 0 AND blood_oxygen < 100) AS avg_blood_oxygen,
-        AVG(stress) FILTER (WHERE stress IS NOT NULL AND stress > 0 AND stress < 255 AND stress BETWEEN 1 AND 100) AS avg_stress,
-        SUM(calories) AS total_calories,
-        SUM(distance) AS total_distance,
-        AVG(fat_burning) AS avg_fat_burning,
-        AVG(pai) AS avg_pai,
-        AVG((sleep_info->>'score')::float) AS avg_sleep_score,
-        SUM((sleep_info->>'totalTime')::float) AS total_sleep_time,
-        AVG(sleeping_status) AS sleeping_status,
-        SUM(steps) AS total_steps,
-        SUM(stand) AS total_stand
-        ${sleepData}
-      FROM health_data_points
-      WHERE user_id = $3
-      GROUP BY bucket
-      ORDER BY bucket;
-    `;
+    SELECT
+      time_bucket($1, record_time AT TIME ZONE $2) AS bucket,
+      AVG(heart_rate) FILTER (WHERE heart_rate IS NOT NULL AND heart_rate > 0 AND heart_rate < 255) AS avg_heart_rate,
+      AVG(rest_heart_rate) FILTER (WHERE rest_heart_rate IS NOT NULL AND rest_heart_rate > 0 AND rest_heart_rate < 255) AS avg_rest_heart_rate,
+      AVG(blood_oxygen) FILTER (WHERE blood_oxygen IS NOT NULL AND blood_oxygen > 0 AND blood_oxygen < 100) AS avg_blood_oxygen,
+      AVG(stress) FILTER (WHERE stress IS NOT NULL AND stress > 0 AND stress < 255 AND stress BETWEEN 1 AND 100) AS avg_stress,
+      SUM(calories) AS total_calories,
+      SUM(distance) AS total_distance,
+      AVG(fat_burning) AS avg_fat_burning,
+      AVG(pai) AS avg_pai,
+      AVG((sleep_info->>'score')::float) AS avg_sleep_score,
+      SUM(steps) AS total_steps,
+      SUM(stand) AS total_stand
+    FROM health_data_points
+    WHERE user_id = $3
+        AND record_time > $4 
+        AND record_time <= $5
+    GROUP BY bucket
+    ORDER BY bucket;
+  `;
 
-    const results = await this.healthDataRepository.query(query, [
+    const healthData = await this.healthDataRepository.query(query, [
       bucketSize,
-      userTimezone,
+      timezone,
       userId,
+      startUtc,
+      endUtc,
     ]);
 
-    return this.mapResultsToGroupedData(results);
+    return healthData.map((result) => {
+      if (!result.bucket) return;
+
+      return {
+        recordTime: new Date(result.bucket),
+        heartRate: parseInt(result.avg_heart_rate),
+        restHeartRate: parseInt(result.avg_rest_heart_rate),
+        bloodOxygen: parseInt(result.avg_blood_oxygen),
+        calories: parseInt(result.total_calories),
+        distance: parseInt(result.total_distance),
+        fatBurning: parseInt(result.avg_fat_burning),
+        pai: parseInt(result.avg_pai),
+        sleepScore: parseInt(result.avg_sleep_score),
+        steps: parseInt(result.total_steps),
+        stand: parseInt(result.total_stand),
+        stress: parseInt(result.avg_stress),
+      };
+    });
   }
 
   private createHealthDataPoint(
@@ -230,45 +266,5 @@ export class HealthDataService {
     ]);
 
     return result[0];
-  }
-
-  private mapResultsToGroupedData(results: any[]): DailyGroupedHealthData {
-    const groupedData: DailyGroupedHealthData = {};
-
-    results.forEach((result) => {
-      if (!result.bucket) return;
-
-      const recordTime = new Date(result.bucket);
-      const yyyy = recordTime.getFullYear();
-      const mm = String(recordTime.getMonth() + 1).padStart(2, '0');
-      const dd = String(recordTime.getDate()).padStart(2, '0');
-      const dateKey = `${yyyy}-${mm}-${dd}`;
-
-      if (!groupedData[dateKey]) {
-        groupedData[dateKey] = [];
-      }
-
-      const dataPoint: GetHealthDataResponseDto = {
-        recordTime,
-        avgHeartRate: parseFloat(result.avg_heart_rate),
-        avgRestHeartRate: parseFloat(result.avg_rest_heart_rate),
-        avgBloodOxygen: parseFloat(result.avg_blood_oxygen),
-        totalCalories: parseFloat(result.total_calories),
-        totalDistance: parseFloat(result.total_distance),
-        avgFatBurning: parseFloat(result.avg_fat_burning),
-        avgPai: parseFloat(result.avg_pai),
-        avgSleepScore: parseFloat(result.avg_sleep_score),
-        totalSleepTime: parseFloat(result.total_sleep_time),
-        sleepingStatus: parseFloat(result.sleeping_status),
-        totalSteps: parseFloat(result.total_steps),
-        totalStand: parseFloat(result.total_stand),
-        avgStress: parseFloat(result.avg_stress),
-        sleepStageData: result.sleep_stage_data,
-      };
-
-      groupedData[dateKey].push(dataPoint);
-    });
-
-    return groupedData;
   }
 }

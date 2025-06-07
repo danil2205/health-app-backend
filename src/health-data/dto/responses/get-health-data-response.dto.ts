@@ -1,20 +1,18 @@
-import { StageInfo } from '../../health-data-point.entity';
+import { SleepInfo, StageInfo } from '../../health-data-point.entity';
 
 export class GetHealthDataResponseDto {
   recordTime: Date;
-  avgHeartRate: number;
-  avgRestHeartRate: number;
-  // avgAfibVal: number;
-  avgBloodOxygen: number;
-  totalCalories: number;
-  totalDistance: number;
-  avgFatBurning: number;
-  avgPai: number;
-  avgSleepScore: number;
-  totalSleepTime: number;
-  sleepingStatus: number;
-  totalSteps: number;
-  totalStand: number;
-  avgStress: number;
-  sleepStageData: Array<StageInfo>;
+  heartRate: number;
+  restHeartRate: number;
+  bloodOxygen: number;
+  calories: number;
+  distance: number;
+  fatBurning: number;
+  pai: number;
+  sleepScore: number;
+  steps: number;
+  stand: number;
+  stress: number;
+  sleepStage: Array<StageInfo>;
+  sleepInfo: SleepInfo;
 }

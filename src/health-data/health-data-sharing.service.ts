@@ -3,13 +3,13 @@ import { UpdateHealthSharingDto } from './dto/requests/update-health-sharing.dto
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserFriends, FriendshipStatus } from '../friends/user-friends.entity';
 import { Repository } from 'typeorm';
-import { AllPeriodsHealthData, HealthDataService } from './health-data.service';
+import { HealthDataService, TimePeriod } from './health-data.service';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
+import { HealthDataPoint } from './health-data-point.entity';
 
 export enum HealthMetric {
   HEART_RATE = 'heart_rate',
   REST_HEART_RATE = 'rest_heart_rate',
-  // AFIB = 'afib',
   BLOOD_OXYGEN = 'blood_oxygen',
   CALORIES = 'calories',
   DISTANCE = 'distance',
@@ -27,18 +27,17 @@ export class HealthDataSharingService {
     HealthMetric,
     keyof GetHealthDataResponseDto | (keyof GetHealthDataResponseDto)[]
   > = {
-    [HealthMetric.HEART_RATE]: 'avgHeartRate',
-    [HealthMetric.REST_HEART_RATE]: 'avgRestHeartRate',
-    // [HealthMetric.AFIB]: 'avgAfibVal',
-    [HealthMetric.BLOOD_OXYGEN]: 'avgBloodOxygen',
-    [HealthMetric.CALORIES]: 'totalCalories',
-    [HealthMetric.DISTANCE]: 'totalDistance',
-    [HealthMetric.FAT_BURNING]: 'avgFatBurning',
-    [HealthMetric.PAI]: 'avgPai',
-    [HealthMetric.SLEEP_DATA]: ['avgSleepScore', 'totalSleepTime', 'sleepStageData'],
-    [HealthMetric.STEPS]: 'totalSteps',
-    [HealthMetric.STAND]: 'totalStand',
-    [HealthMetric.STRESS]: 'avgStress',
+    [HealthMetric.HEART_RATE]: 'heartRate',
+    [HealthMetric.REST_HEART_RATE]: 'restHeartRate',
+    [HealthMetric.BLOOD_OXYGEN]: 'bloodOxygen',
+    [HealthMetric.CALORIES]: 'calories',
+    [HealthMetric.DISTANCE]: 'distance',
+    [HealthMetric.FAT_BURNING]: 'fatBurning',
+    [HealthMetric.PAI]: 'pai',
+    [HealthMetric.SLEEP_DATA]: ['sleepScore', 'sleepInfo', 'sleepStage'],
+    [HealthMetric.STEPS]: 'steps',
+    [HealthMetric.STAND]: 'stand',
+    [HealthMetric.STRESS]: 'stress',
   };
 
   constructor(
@@ -67,11 +66,12 @@ export class HealthDataSharingService {
     };
   }
 
-  async getFriendHealthData(
+  async getFriendDailyHealthData(
     userId: string,
     friendId: string,
+    offset: number,
     timezone: string,
-  ): Promise<Partial<AllPeriodsHealthData>> {
+  ): Promise<Partial<HealthDataPoint>[]> {
     const friendship = await this.getFriendship(userId, friendId);
 
     const sharedMetrics =
@@ -79,11 +79,38 @@ export class HealthDataSharingService {
         ? friendship.receiverSharedMetrics
         : friendship.requesterSharedMetrics;
 
-    if (sharedMetrics.length === 0) return {};
+    if (sharedMetrics.length === 0) return [];
 
-    const healthData = await this.healthDataService.getHealthDataByUserId(
+    const healthData = await this.healthDataService.getDailyHealthDataPoints(
       friendId,
       timezone,
+      offset,
+    );
+
+    return this.filterHealthDataByMetrics(healthData, sharedMetrics);
+  }
+
+  async getFriendHealthData(
+    userId: string,
+    friendId: string,
+    timezone: string,
+    period: TimePeriod,
+    offset: number,
+  ): Promise<Partial<GetHealthDataResponseDto>[]> {
+    const friendship = await this.getFriendship(userId, friendId);
+
+    const sharedMetrics =
+      friendship.requesterId === userId
+        ? friendship.receiverSharedMetrics
+        : friendship.requesterSharedMetrics;
+
+    if (sharedMetrics.length === 0) return [];
+
+    const healthData = await this.healthDataService.getHealthDataByPeriod(
+      friendId,
+      timezone,
+      period,
+      offset,
     );
 
     return this.filterHealthDataByMetrics(healthData, sharedMetrics);
@@ -104,44 +131,31 @@ export class HealthDataSharingService {
   }
 
   private filterHealthDataByMetrics(
-    healthData: AllPeriodsHealthData,
+    healthData: HealthDataPoint[] | GetHealthDataResponseDto[],
     sharedMetrics: HealthMetric[],
-  ): Partial<AllPeriodsHealthData> {
-    const filteredData: Partial<AllPeriodsHealthData> = {};
+  ): Partial<HealthDataPoint>[] {
+    return healthData.map((point) => {
+      const filteredDataPoint: Partial<HealthDataPoint> = {
+        recordTime: point.recordTime,
+      };
 
-    for (const [period, periodData] of Object.entries(healthData)) {
-      filteredData[period] = {};
+      for (const metric of sharedMetrics) {
+        const properties = this.metricToPropertyMap[metric];
+        if (!properties) {
+          continue;
+        }
 
-      for (const [date, dataPoints] of Object.entries(periodData)) {
-        filteredData[period][date] = dataPoints.map(
-          ({ recordTime, ...rest }) => {
-            const filteredPoint: any = { recordTime };
-
-            for (const metric of sharedMetrics) {
-              const propertiesOrProperty = this.metricToPropertyMap[metric];
-              if (propertiesOrProperty) {
-                if (Array.isArray(propertiesOrProperty)) {
-                  for (const property of propertiesOrProperty) {
-                    if (rest[property] !== undefined) {
-                      filteredPoint[property] = rest[property];
-                    }
-                  }
-                } else {
-                  const property =
-                    propertiesOrProperty as keyof GetHealthDataResponseDto;
-                  if (rest[property] !== undefined) {
-                    filteredPoint[property] = rest[property];
-                  }
-                }
-              }
-            }
-            return filteredPoint;
-          },
-        );
+        if (Array.isArray(properties)) {
+          for (const prop of properties) {
+            filteredDataPoint[prop] = point[prop];
+          }
+        } else {
+          filteredDataPoint[properties] = point[properties];
+        }
       }
-    }
 
-    return filteredData;
+      return filteredDataPoint;
+    });
   }
 
   private async getFriendship(

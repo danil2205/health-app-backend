@@ -1,7 +1,7 @@
 import { Exclude } from 'class-transformer';
-import { Entity, Column, PrimaryGeneratedColumn, Index, PrimaryColumn } from 'typeorm';
+import { Entity, Column, Index, PrimaryColumn } from 'typeorm';
 
-interface SleepInfo {
+export interface SleepInfo {
   score: number;
   startTime: number;
   endTime: number;
