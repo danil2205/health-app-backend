@@ -1,4 +1,4 @@
-import { generateObject, generateText, streamText, tool } from 'ai';
+import { generateObject, streamText } from 'ai';
 import {
   createGoogleGenerativeAI,
   google,
@@ -50,7 +50,7 @@ export class ChatBotService {
   }
 
   async generateResponse(userId: string, sendPromptDto: SendPromptDto) {
-    const { query } = sendPromptDto;
+    const { query, timezone } = sendPromptDto;
 
     const modelInstance = this.googleAIProvider(this.model);
     let chat = await this.chatRepository.findOne({ where: { userId } });
@@ -62,18 +62,19 @@ export class ChatBotService {
       });
     }
 
-    const generatedQuery = await this.generateQuery(
-      query + `\n user_id: ${userId}`,
-      this.model,
-    );
+    const generatedQuery = await this.generateQuery(query, this.model);
     console.log('Generated SQL Query:', generatedQuery);
-    const resultsFromDb = await this.runGenerateSQLQuery(generatedQuery);
+    const injectedQuery = this.injectUserIdFilter(generatedQuery, userId);
+    console.log('Injected SQL Query:', injectedQuery);
+    const resultsFromDb = await this.runGenerateSQLQuery(injectedQuery);
     console.log('Results from DB:', resultsFromDb);
 
     const result = streamText({
       model: modelInstance,
       system: SYSTEM_INSTRUCTION,
-      prompt: query + `\n Health Data: ${JSON.stringify(resultsFromDb)}`,
+      prompt:
+        query +
+        `\n Health Data: ${JSON.stringify(resultsFromDb)}\nUser's local timezone: ${timezone}`,
       maxTokens: 2048,
       onFinish: async (res) => {
         chat.history.push({
@@ -146,4 +147,12 @@ export class ChatBotService {
 
     return data;
   };
+
+  private injectUserIdFilter(query: string, userId: string): string {
+    const lowerQuery = query.toLowerCase();
+    return lowerQuery.replace(
+      /user_id\s*=\s*'specific_user_id'/i,
+      `user_id = '${userId}'`,
+    );
+  }
 }
