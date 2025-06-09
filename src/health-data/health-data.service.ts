@@ -321,7 +321,7 @@ export class HealthDataService {
       userId,
       timezone,
       TimePeriod.WEEK,
-      -2,
+      0,
     );
 
     return lastWeekHealthData;
