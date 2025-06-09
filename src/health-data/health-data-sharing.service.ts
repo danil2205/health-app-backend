@@ -6,6 +6,10 @@ import { Repository } from 'typeorm';
 import { HealthDataService, TimePeriod } from './health-data.service';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
 import { HealthDataPoint } from './health-data-point.entity';
+import {
+  GetHighlightDataResponseDto,
+  HealthDataSet,
+} from './dto/responses/get-highlight-data-response.dto';
 
 export enum HealthMetric {
   HEART_RATE = 'heart_rate',
@@ -73,11 +77,7 @@ export class HealthDataSharingService {
     timezone: string,
   ): Promise<Partial<HealthDataPoint>[]> {
     const friendship = await this.getFriendship(userId, friendId);
-
-    const sharedMetrics =
-      friendship.requesterId === userId
-        ? friendship.receiverSharedMetrics
-        : friendship.requesterSharedMetrics;
+    const sharedMetrics = this.getSharedMetrics(friendship, userId);
 
     if (sharedMetrics.length === 0) return [];
 
@@ -98,11 +98,7 @@ export class HealthDataSharingService {
     offset: number,
   ): Promise<Partial<GetHealthDataResponseDto>[]> {
     const friendship = await this.getFriendship(userId, friendId);
-
-    const sharedMetrics =
-      friendship.requesterId === userId
-        ? friendship.receiverSharedMetrics
-        : friendship.requesterSharedMetrics;
+    const sharedMetrics = this.getSharedMetrics(friendship, userId);
 
     if (sharedMetrics.length === 0) return [];
 
@@ -114,6 +110,57 @@ export class HealthDataSharingService {
     );
 
     return this.filterHealthDataByMetrics(healthData, sharedMetrics);
+  }
+
+  async getFriendHighlightHealthData(
+    userId: string,
+    friendId: string,
+    timezone: TimePeriod,
+  ): Promise<GetHighlightDataResponseDto> {
+    const friendship = await this.getFriendship(userId, friendId);
+    const sharedMetrics = this.getSharedMetrics(friendship, userId);
+
+    if (sharedMetrics.length === 0) {
+      return {
+        typicalData: {},
+        monthProgressData: { currentData: [], previousData: [] },
+        yearProgressData: { currentData: [], previousData: [] },
+        avgMetricData: [],
+      };
+    }
+
+    const highlightData = await this.healthDataService.getHighlightData(
+      friendId,
+      timezone,
+    );
+
+    const filteredTypicalData: Record<string, Partial<HealthDataPoint>[]> = {};
+    for (const key in highlightData.typicalData) {
+      filteredTypicalData[key] = this.filterHealthDataByMetrics(
+        highlightData.typicalData[key],
+        sharedMetrics,
+      );
+    }
+
+    const filteredMonthProgressData = this.filterProgressData(
+      highlightData.monthProgressData,
+      sharedMetrics,
+    );
+    const filteredYearProgressData = this.filterProgressData(
+      highlightData.yearProgressData,
+      sharedMetrics,
+    );
+    const filteredAvgMetricData = this.filterHealthDataByMetrics(
+      highlightData.avgMetricData,
+      sharedMetrics,
+    );
+
+    return {
+      typicalData: filteredTypicalData,
+      monthProgressData: filteredMonthProgressData,
+      yearProgressData: filteredYearProgressData,
+      avgMetricData: filteredAvgMetricData,
+    };
   }
 
   async getMySharedMetricsForFriend(
@@ -131,7 +178,7 @@ export class HealthDataSharingService {
   }
 
   private filterHealthDataByMetrics(
-    healthData: HealthDataPoint[] | GetHealthDataResponseDto[],
+    healthData: HealthDataPoint[] | Partial<GetHealthDataResponseDto>[],
     sharedMetrics: HealthMetric[],
   ): Partial<HealthDataPoint>[] {
     return healthData.map((point) => {
@@ -182,5 +229,34 @@ export class HealthDataSharingService {
     }
 
     return friendship;
+  }
+
+  private getSharedMetrics(
+    friendship: UserFriends,
+    userId: string,
+  ): HealthMetric[] {
+    const sharedMetrics =
+      friendship.requesterId === userId
+        ? friendship.receiverSharedMetrics
+        : friendship.requesterSharedMetrics;
+
+    return sharedMetrics;
+  }
+
+  private filterProgressData(
+    healthData: HealthDataSet,
+    sharedMetrics: HealthMetric[],
+  ): {
+    currentData: Partial<HealthDataPoint>[];
+    previousData: Partial<HealthDataPoint>[];
+  } {
+    return {
+      currentData: healthData.currentData.length
+        ? this.filterHealthDataByMetrics(healthData.currentData, sharedMetrics)
+        : [],
+      previousData: healthData.previousData.length
+        ? this.filterHealthDataByMetrics(healthData.previousData, sharedMetrics)
+        : [],
+    };
   }
 }

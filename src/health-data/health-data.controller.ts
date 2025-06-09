@@ -13,6 +13,7 @@ import { AuthGuard } from '../auth/guards/auth.guard';
 import { HealthDataPoint } from './health-data-point.entity';
 import { HealthDataPointDto } from './dto/health-data-point.dto';
 import { GetHealthDataResponseDto } from './dto/responses/get-health-data-response.dto';
+import { GetHighlightDataResponseDto } from './dto/responses/get-highlight-data-response.dto';
 
 @Controller('health')
 export class HealthDataController {
@@ -46,6 +47,15 @@ export class HealthDataController {
       period,
       offset,
     );
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('highlight')
+  async getHighlightData(
+    @Request() req,
+    @Query('timezone') timezone: TimePeriod,
+  ): Promise<GetHighlightDataResponseDto> {
+    return this.healthDataService.getHighlightData(req.user.id, timezone);
   }
 
   // @UseGuards(AuthGuard)

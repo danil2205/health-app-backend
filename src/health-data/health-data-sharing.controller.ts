@@ -14,6 +14,7 @@ import { UpdateHealthSharingDto } from './dto/requests/update-health-sharing.dto
 import { AuthGuard } from '../auth/guards/auth.guard';
 import { HealthDataPoint } from './health-data-point.entity';
 import { TimePeriod } from './health-data.service';
+import { GetHighlightDataResponseDto } from './dto/responses/get-highlight-data-response.dto';
 
 @Controller('health/sharing')
 export class HealthDataSharingController {
@@ -63,6 +64,20 @@ export class HealthDataSharingController {
       req.user.id,
       friendId,
       offset,
+      timezone,
+    );
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('highlight/:friendId')
+  async getFriendHighlightHealthData(
+    @Request() req,
+    @Param('friendId') friendId: string,
+    @Query('timezone') timezone: TimePeriod,
+  ): Promise<GetHighlightDataResponseDto> {
+    return this.healthDataSharingService.getFriendHighlightHealthData(
+      req.user.id,
+      friendId,
       timezone,
     );
   }

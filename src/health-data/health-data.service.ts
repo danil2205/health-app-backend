@@ -8,7 +8,6 @@ import {
   startOfDay,
   endOfDay,
   addDays,
-  subDays,
   startOfWeek,
   endOfWeek,
   addMonths,
@@ -18,10 +17,13 @@ import {
   startOfYear,
   addWeeks,
   addYears,
+  subWeeks,
+  format,
 } from 'date-fns';
 import { toZonedTime, fromZonedTime } from 'date-fns-tz';
 import { plainToInstance } from 'class-transformer';
 import { HealthDataPointDto } from './dto/health-data-point.dto';
+import { GetHighlightDataResponseDto } from './dto/responses/get-highlight-data-response.dto';
 
 export enum TimePeriod {
   DAY = 'day',
@@ -101,10 +103,18 @@ export class HealthDataService {
         startOfDay: startOfTargetDayUtc,
       })
       .andWhere('hdp.recordTime <= :endOfDay', { endOfDay: endOfTargetDayUtc })
-      .orderBy('hdp.recordTime', 'ASC')
+      .orderBy('hdp.recordTime')
       .getMany();
 
-    return plainToInstance(HealthDataPoint, healthData);
+    const cleanedHealthData = healthData.map((hd) => ({
+      ...hd,
+      heartRate: this.validateValue(hd.heartRate, 1, 254),
+      restHeartRate: this.validateValue(hd.restHeartRate, 1, 254),
+      bloodOxygen: this.validateValue(hd.bloodOxygen, 1, 99),
+      stress: this.validateValue(hd.stress, 1, 100),
+    }));
+
+    return plainToInstance(HealthDataPoint, cleanedHealthData);
   }
 
   async getHealthDataByPeriod(
@@ -140,10 +150,13 @@ export class HealthDataService {
       }
 
       case '6months': {
-        const targetStart = startOfMonth(addMonths(nowInUserTz, offset * 6));
-        const targetEnd = endOfMonth(addMonths(targetStart, 5));
-        startDateInUserTz = startOfDay(targetStart);
-        endDateInUserTz = endOfDay(targetEnd);
+        const endReferenceDate = startOfMonth(
+          addMonths(nowInUserTz, offset * 6),
+        );
+        endDateInUserTz = endOfDay(endOfMonth(endReferenceDate));
+        startDateInUserTz = startOfDay(
+          startOfMonth(addMonths(endReferenceDate, -5)),
+        );
         break;
       }
 
@@ -196,9 +209,9 @@ export class HealthDataService {
 
       return {
         recordTime: new Date(result.bucket),
-        heartRate: parseInt(result.avg_heart_rate),
-        restHeartRate: parseInt(result.avg_rest_heart_rate),
-        bloodOxygen: parseInt(result.avg_blood_oxygen),
+        heartRate: this.validateValue(result.avg_heart_rate, 1, 254),
+        restHeartRate: this.validateValue(result.avg_rest_heart_rate, 1, 254),
+        bloodOxygen: this.validateValue(result.avg_blood_oxygen, 1, 99),
         calories: parseInt(result.total_calories),
         distance: parseInt(result.total_distance),
         fatBurning: parseInt(result.avg_fat_burning),
@@ -206,9 +219,112 @@ export class HealthDataService {
         sleepScore: parseInt(result.avg_sleep_score),
         steps: parseInt(result.total_steps),
         stand: parseInt(result.total_stand),
-        stress: parseInt(result.avg_stress),
+        stress: this.validateValue(result.avg_stress, 1, 100),
       };
     });
+  }
+
+  async getHighlightData(
+    userId: string,
+    timezone: TimePeriod,
+  ): Promise<GetHighlightDataResponseDto> {
+    const typicalData = await this.getHighlightTypicalValueData(
+      userId,
+      timezone,
+    );
+
+    const monthProgressData = await this.getHighlightTimeProgressData(
+      userId,
+      timezone,
+      TimePeriod.MONTH,
+    );
+
+    const yearProgressData = await this.getHighlightTimeProgressData(
+      userId,
+      timezone,
+      TimePeriod.YEAR,
+    );
+
+    const avgMetricData = await this.getHighlightAvgMetricData(
+      userId,
+      timezone,
+    );
+
+    return {
+      typicalData,
+      monthProgressData,
+      yearProgressData,
+      avgMetricData,
+    };
+  }
+
+  async getHighlightTypicalValueData(userId: string, timezone: string) {
+    const nowInUserTz = toZonedTime(new Date(), timezone);
+    const fiveWeeksAgoInUserTz = subWeeks(nowInUserTz, 5);
+
+    const startDateUtc = fromZonedTime(
+      startOfDay(fiveWeeksAgoInUserTz),
+      timezone,
+    );
+
+    const data = await this.healthDataRepository
+      .createQueryBuilder('hdp')
+      .where('hdp.userId = :userId', { userId })
+      .andWhere('hdp.recordTime >= :startDate', { startDate: startDateUtc })
+      .orderBy('hdp.recordTime')
+      .getMany();
+
+    if (data.length === 0) return {};
+
+    const dayData: Record<string, HealthDataPoint[]> = {};
+    for (const point of data) {
+      const dateKey = format(
+        toZonedTime(point.recordTime, timezone),
+        'yyyy-MM-dd',
+      );
+      if (!dayData[dateKey]) {
+        dayData[dateKey] = [];
+      }
+      dayData[dateKey].push(point);
+    }
+
+    return dayData;
+  }
+
+  async getHighlightTimeProgressData(
+    userId: string,
+    timezone: string,
+    period: TimePeriod,
+  ) {
+    const curHealthData = await this.getHealthDataByPeriod(
+      userId,
+      timezone,
+      period,
+      0,
+    );
+
+    const prevHealthData = await this.getHealthDataByPeriod(
+      userId,
+      timezone,
+      period,
+      -1,
+    );
+
+    return {
+      currentData: curHealthData,
+      previousData: prevHealthData,
+    };
+  }
+
+  async getHighlightAvgMetricData(userId: string, timezone: string) {
+    const lastWeekHealthData = await this.getHealthDataByPeriod(
+      userId,
+      timezone,
+      TimePeriod.WEEK,
+      -2,
+    );
+
+    return lastWeekHealthData;
   }
 
   private createHealthDataPoint(
@@ -266,5 +382,13 @@ export class HealthDataService {
     ]);
 
     return result[0];
+  }
+
+  private validateValue(
+    value: number,
+    min: number,
+    max: number,
+  ): number | null {
+    return value >= min && value <= max ? ~~value : null;
   }
 }
