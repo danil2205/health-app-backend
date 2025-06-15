@@ -149,8 +149,7 @@ export class ChatBotService {
   };
 
   private injectUserIdFilter(query: string, userId: string): string {
-    const lowerQuery = query.toLowerCase();
-    return lowerQuery.replace(
+    return query.replace(
       /user_id\s*=\s*'specific_user_id'/i,
       `user_id = '${userId}'`,
     );
