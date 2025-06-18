@@ -5,7 +5,8 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PairingCode } from './pairing-code.entity';
-import { Repository } from 'typeorm';
+import { Repository, LessThan } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PairingCodeResponseDto } from './dto/responses/pairing-code-response.dto';
 import { VerifyCodeRequestDto } from './dto/requests/verify-code-request.dto';
 import { VerifyCodeResponseDto } from './dto/responses/verify-code-response.dto';
@@ -170,5 +171,22 @@ export class PairingService {
       ? await this.userRepository.findOneBy({ id: userId })
       : await this.userRepository.findOne({ where: { watchId } });
     return { isLinked: !!user?.watchId };
+  }
+
+  @Cron(CronExpression.EVERY_6_HOURS)
+  async handleExpiredPairingCodes() {
+    try {
+      const result = await this.pairingCodeRepository.delete({
+        expiresAt: LessThan(new Date()),
+      });
+
+      if (result.affected && result.affected > 0) {
+        console.log(
+          `Successfully deleted ${result.affected} expired pairing codes.`,
+        );
+      }
+    } catch (error) {
+      console.log('Error while deleting expired pairing codes:', error);
+    }
   }
 }
