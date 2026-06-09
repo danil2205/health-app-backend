@@ -1,4 +1,4 @@
-import { generateObject, streamText } from 'ai';
+import { generateObject, streamText, StreamTextResult } from 'ai';
 import {
   createGoogleGenerativeAI,
   google,
@@ -49,7 +49,10 @@ export class ChatBotService {
     );
   }
 
-  async generateResponse(userId: string, sendPromptDto: SendPromptDto) {
+  async generateResponse(
+    userId: string,
+    sendPromptDto: SendPromptDto,
+  ): Promise<StreamTextResult<any, any>> {
     const { query, timezone } = sendPromptDto;
 
     const modelInstance = this.googleAIProvider(this.model);
@@ -75,7 +78,7 @@ export class ChatBotService {
       prompt:
         query +
         `\n Health Data: ${JSON.stringify(resultsFromDb)}\nUser's local timezone: ${timezone}`,
-      maxTokens: 2048,
+      maxOutputTokens: 2048,
       onFinish: async (res) => {
         chat.history.push({
           query,
